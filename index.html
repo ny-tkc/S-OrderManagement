@@ -134,6 +134,10 @@
       import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
       import ReactDOM from 'react-dom/client';
       import { v4 as uuidv4 } from 'uuid';
+      import {
+        ResponsiveContainer, BarChart, PieChart, LineChart, ComposedChart,
+        Bar, Pie, Line, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend
+      } from 'recharts';
 
       // --- Constants and Services ---
       
@@ -862,6 +866,218 @@
         </div>
       );
 
+      const AnalysisView = ({ items, period, target, viewType }) => {
+        const [officeChartType, setOfficeChartType] = useState('bar');
+        const [systemChartType, setSystemChartType] = useState('pie');
+        const [trendChartType, setTrendChartType] = useState('line');
+
+        const COLORS = ['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#3b82f6', '#ec4899'];
+        
+        const officeData = useMemo(() => {
+            if (!items || items.length === 0) return [];
+            const counts = items.reduce((acc, item) => {
+                const officeName = item.officeName || '不明';
+                acc[officeName] = (acc[officeName] || 0) + 1;
+                return acc;
+            }, {});
+            return Object.entries(counts)
+                .map(([name, value]) => ({ name, value }))
+                .sort((a, b) => b.value - a.value);
+        }, [items]);
+
+        const systemData = useMemo(() => {
+            if (!items || items.length === 0) return [];
+            const counts = items.reduce((acc, item) => {
+                let systemName = 'N/A';
+                if (viewType === 'migrations') {
+                    systemName = item.afterSystem || '不明';
+                } else if(item.system) {
+                    systemName = item.system;
+                }
+                acc[systemName] = (acc[systemName] || 0) + 1;
+                return acc;
+            }, {});
+            return Object.entries(counts)
+                .map(([name, value]) => ({ name, value }))
+                .sort((a, b) => b.value - a.value);
+        }, [items, viewType]);
+
+        const trendData = useMemo(() => {
+            if (!items || !period.startDate || !period.endDate) return [];
+            
+            const start = new Date(period.startDate);
+            const end = new Date(period.endDate);
+            
+            const months = [];
+            let current = new Date(start);
+            current.setDate(1);
+
+            while (current <= end) {
+                months.push(new Date(current));
+                current.setMonth(current.getMonth() + 1);
+            }
+
+            const totalDays = Math.max(1, (end.getTime() - start.getTime()) / (1000 * 3600 * 24));
+            
+            const data = months.map(month => {
+                const endOfMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0);
+                const displayDate = endOfMonth > end ? end : endOfMonth;
+
+                const cumulativeCount = items.filter(item => new Date(item.orderDate) <= displayDate).length;
+                
+                const daysIntoPeriod = (displayDate.getTime() - start.getTime()) / (1000 * 3600 * 24);
+                const targetProgress = target > 0 ? Math.round((daysIntoPeriod / totalDays) * target) : 0;
+                
+                return {
+                    month: `${displayDate.getFullYear()}/${String(displayDate.getMonth() + 1).padStart(2, '0')}`,
+                    実績: cumulativeCount,
+                    目標: targetProgress,
+                };
+            });
+            
+            const startPoint = {
+                month: `${start.getFullYear()}/${String(start.getMonth() + 1).padStart(2, '0')}`,
+                実績: items.filter(item => new Date(item.orderDate) < start).length, // Should be 0 but good practice
+                目標: 0,
+            };
+            
+            const uniqueData = Array.from(new Map(data.map(item => [item.month, item])).values());
+            
+            // Ensure start point is only added if not already present
+            if (uniqueData.length > 0 && uniqueData[0].month === startPoint.month) {
+                uniqueData[0].実績 = startPoint.実績;
+                uniqueData[0].目標 = startPoint.目標;
+                return uniqueData;
+            }
+
+            return [startPoint, ...uniqueData];
+        }, [items, period, target]);
+
+        const ChartToggleButton = ({ options, selected, onChange }) => (
+            <div className="flex space-x-1 bg-gray-200 p-1 rounded-md">
+                {options.map(option => (
+                    <button
+                        key={option.value}
+                        onClick={() => onChange(option.value)}
+                        className={`px-3 py-1 text-sm rounded transition-colors ${selected === option.value ? 'bg-white text-indigo-600 shadow' : 'text-gray-600 hover:bg-gray-100'}`}
+                    >
+                        {option.label}
+                    </button>
+                ))}
+            </div>
+        );
+        
+        const EmptyChart = ({message = "表示するデータがありません。"}) => (
+            <div className="flex items-center justify-center h-full text-gray-500">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 mr-2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}><path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+                {message}
+            </div>
+        );
+        
+        return (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Office Analysis */}
+                <div className="bg-white p-6 rounded-lg shadow-md lg:col-span-1">
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-lg font-semibold text-gray-800">事務所別 件数</h3>
+                        <ChartToggleButton options={[{label: '棒', value: 'bar'}, {label: '円', value: 'pie'}]} selected={officeChartType} onChange={setOfficeChartType} />
+                    </div>
+                     <div className="w-full h-96">
+                        {officeData.length > 0 ? (
+                             <ResponsiveContainer>
+                                {officeChartType === 'bar' ? (
+                                    <BarChart data={officeData} layout="vertical" margin={{ top: 5, right: 20, left: 100, bottom: 5 }}>
+                                        <CartesianGrid strokeDasharray="3 3" />
+                                        <XAxis type="number" allowDecimals={false} />
+                                        <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 12 }} />
+                                        <Tooltip formatter={(value) => [`${value}件`, '件数']} />
+                                        <Bar dataKey="value" fill="#4f46e5" />
+                                    </BarChart>
+                                ) : (
+                                    <PieChart>
+                                        <Pie data={officeData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={120} fill="#8884d8" startAngle={90} endAngle={-270}>
+                                             {officeData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+                                        </Pie>
+                                        <Tooltip formatter={(value, name) => [`${value}件`, name]} />
+                                        <Legend />
+                                    </PieChart>
+                                )}
+                            </ResponsiveContainer>
+                        ) : <EmptyChart />}
+                    </div>
+                </div>
+
+                {/* System Analysis */}
+                <div className="bg-white p-6 rounded-lg shadow-md lg:col-span-1">
+                    <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-lg font-semibold text-gray-800">システム別 件数</h3>
+                         <ChartToggleButton options={[{label: '円', value: 'pie'}, {label: '棒', value: 'bar'}]} selected={systemChartType} onChange={setSystemChartType} />
+                    </div>
+                     <div className="w-full h-96">
+                        {systemData.length > 0 ? (
+                             <ResponsiveContainer>
+                                {systemChartType === 'pie' ? (
+                                    <PieChart>
+                                        <Pie data={systemData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={120} fill="#8884d8" startAngle={90} endAngle={-270}>
+                                            {systemData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+                                        </Pie>
+                                        <Tooltip formatter={(value, name) => [`${value}件`, name]}/>
+                                        <Legend />
+                                    </PieChart>
+                                ) : (
+                                    <BarChart data={systemData} margin={{ top: 5, right: 20, left: 20, bottom: 80 }}>
+                                        <CartesianGrid strokeDasharray="3 3" />
+                                        <XAxis dataKey="name" interval={0} angle={-45} textAnchor="end" height={80} tick={{ fontSize: 12 }}/>
+                                        <YAxis allowDecimals={false}/>
+                                        <Tooltip formatter={(value) => [`${value}件`, '件数']}/>
+                                        <Bar dataKey="value">
+                                            {systemData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+                                        </Bar>
+                                    </BarChart>
+                                )}
+                            </ResponsiveContainer>
+                        ) : <EmptyChart />}
+                    </div>
+                </div>
+
+                {/* Trend Analysis */}
+                {viewType !== 'cancellations' && target > 0 && (
+                    <div className="bg-white p-6 rounded-lg shadow-md lg:col-span-2">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="text-lg font-semibold text-gray-800">トレンドグラフ</h3>
+                             <ChartToggleButton options={[{label: '線', value: 'line'}, {label: '棒', value: 'bar'}]} selected={trendChartType} onChange={setTrendChartType} />
+                        </div>
+                         <div className="w-full h-96">
+                             <ResponsiveContainer>
+                                {trendChartType === 'line' ? (
+                                    <LineChart data={trendData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                                        <CartesianGrid strokeDasharray="3 3" />
+                                        <XAxis dataKey="month" />
+                                        <YAxis domain={[0, dataMax => Math.max(target * 1.1, dataMax * 1.1)]} allowDecimals={false} />
+                                        <Tooltip />
+                                        <Legend />
+                                        <Line type="monotone" dataKey="実績" stroke="#4f46e5" strokeWidth={2} activeDot={{ r: 8 }} />
+                                        <Line type="monotone" dataKey="目標" stroke="#f59e0b" strokeWidth={2} strokeDasharray="5 5" />
+                                    </LineChart>
+                                ) : (
+                                    <ComposedChart data={trendData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                                        <CartesianGrid strokeDasharray="3 3" />
+                                        <XAxis dataKey="month" />
+                                        <YAxis domain={[0, dataMax => Math.max(target * 1.1, dataMax * 1.1)]} allowDecimals={false} />
+                                        <Tooltip />
+                                        <Legend />
+                                        <Bar dataKey="実績" fill="#4f46e5" />
+                                        <Line type="monotone" dataKey="目標" stroke="#ef4444" strokeWidth={2} dot={false} />
+                                    </ComposedChart>
+                                )}
+                            </ResponsiveContainer>
+                        </div>
+                    </div>
+                )}
+            </div>
+        );
+      };
+
       const App = () => {
         const fiscalPeriods = useMemo(() => generateFiscalPeriods(), []);
         const initialPeriod = getCurrentPeriod(fiscalPeriods) || fiscalPeriods[0];
@@ -1339,7 +1555,7 @@
                                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                             }`}
                         >
-                            分析 (準備中)
+                            分析
                         </button>
                     </nav>
                 </div>
@@ -1355,13 +1571,12 @@
                     />
                 )}
                 {activeSubView === 'analysis' && (
-                    <div className="bg-white p-12 rounded-lg shadow-md text-center border border-dashed">
-                        <svg xmlns="http://www.w3.org/2000/svg" className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                        </svg>
-                        <h3 className="mt-4 text-xl font-semibold text-gray-700">分析機能は現在準備中です</h3>
-                        <p className="mt-2 text-gray-500">今後のアップデートにご期待ください。</p>
-                    </div>
+                     <AnalysisView 
+                        items={isOrdersView ? activeOrdersForPeriod : itemsForPeriod}
+                        period={selectedPeriod}
+                        target={isOrdersView ? totalOrderTarget : (isMigrationsView ? migrationTarget : 0)}
+                        viewType={view}
+                    />
                 )}
             </main>
 
