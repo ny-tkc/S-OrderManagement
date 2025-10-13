@@ -136,7 +136,7 @@
       import { v4 as uuidv4 } from 'uuid';
       import {
         ResponsiveContainer, BarChart, PieChart, LineChart, ComposedChart,
-        Bar, Pie, Line, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend
+        Bar, Pie, Line, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine
       } from 'recharts';
 
       // --- Constants and Services ---
@@ -900,7 +900,6 @@
       );
 
       const AnalysisView = ({ items, period, target, viewType }) => {
-        const [officeChartType, setOfficeChartType] = useState('bar');
         const [systemChartType, setSystemChartType] = useState('pie');
         const [trendChartType, setTrendChartType] = useState('line');
 
@@ -963,23 +962,25 @@
                     date: currentDate.getTime(),
                     dateLabel: `${currentDate.getFullYear()}/${String(currentDate.getMonth() + 1).padStart(2, '0')}/${String(currentDate.getDate()).padStart(2, '0')}`,
                     累計実績: cumulativeCount,
-                    目標: targetProgress,
+                    目標: Math.round(targetProgress),
                 });
             }
             
             const ticks = [];
-            let currentMonth = new Date(start.getFullYear(), start.getMonth(), 1);
-            while (currentMonth <= end) {
-                ticks.push(currentMonth.getTime());
-                currentMonth.setMonth(currentMonth.getMonth() + 1);
+            let iter = new Date(start.getFullYear(), start.getMonth(), 15);
+            if (start > iter) { // if period starts after the 15th of the first month
+                iter.setMonth(iter.getMonth() + 1);
             }
-            if (!ticks.includes(start.getTime())) ticks.unshift(start.getTime());
+            while (iter <= end) {
+                ticks.push(iter.getTime());
+                iter.setMonth(iter.getMonth() + 1);
+            }
 
             return { data, ticks };
         }, [items, period, target]);
 
-        const barTrendData = useMemo(() => {
-            if (!items || !period.startDate || !period.endDate || target <= 0) return [];
+        const { barTrendData, monthlyTarget } = useMemo(() => {
+            if (!items || !period.startDate || !period.endDate || target <= 0) return { barTrendData: [], monthlyTarget: 0 };
             
             const start = new Date(period.startDate);
             const end = new Date(period.endDate);
@@ -999,18 +1000,19 @@
             }, {});
 
             const numberOfMonths = months.length > 0 ? months.length : 1;
-            const monthlyTarget = target / numberOfMonths;
+            const calculatedMonthlyTarget = Math.round(target / numberOfMonths);
 
-            return months.map(({ year, month }) => {
+            const data = months.map(({ year, month }) => {
                 const key = `${year}-${month}`;
                 const monthlyCount = monthlyCounts[key] || 0;
                 
                 return {
                     month: `${year}/${String(month + 1).padStart(2, '0')}`,
                     月間実績: monthlyCount,
-                    月間目標: monthlyTarget,
+                    月間目標: calculatedMonthlyTarget,
                 };
             });
+            return { barTrendData: data, monthlyTarget: calculatedMonthlyTarget };
         }, [items, period, target]);
 
         const cancellationReasonData = useMemo(() => {
@@ -1058,28 +1060,19 @@
                 <div className="bg-white p-6 rounded-lg shadow-md lg:col-span-1">
                     <div className="flex justify-between items-center mb-4">
                         <h3 className="text-lg font-semibold text-gray-800">事務所別 件数</h3>
-                        <ChartToggleButton options={[{label: '棒', value: 'bar'}, {label: '円', value: 'pie'}]} selected={officeChartType} onChange={setOfficeChartType} />
                     </div>
                      <div className="w-full h-96">
                         {officeData.length > 0 ? (
                              <ResponsiveContainer>
-                                {officeChartType === 'bar' ? (
-                                    <BarChart data={officeData} layout="vertical" margin={{ top: 5, right: 20, left: 100, bottom: 5 }}>
-                                        <CartesianGrid strokeDasharray="3 3" />
-                                        <XAxis type="number" allowDecimals={false} />
-                                        <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 12 }} />
-                                        <Tooltip formatter={(value) => [`${value}件`, '件数']} />
-                                        <Bar dataKey="value" fill="#4f46e5" />
-                                    </BarChart>
-                                ) : (
-                                    <PieChart>
-                                        <Pie data={officeData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={120} fill="#8884d8" startAngle={90} endAngle={-270}>
-                                             {officeData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
-                                        </Pie>
-                                        <Tooltip formatter={(value, name) => [`${value}件`, name]} />
-                                        <Legend />
-                                    </PieChart>
-                                )}
+                                <BarChart data={officeData} layout="vertical" margin={{ top: 5, right: 20, left: 100, bottom: 5 }}>
+                                    <CartesianGrid strokeDasharray="3 3" />
+                                    <XAxis type="number" allowDecimals={false} />
+                                    <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 12 }} />
+                                    <Tooltip formatter={(value) => [`${value}件`, '件数']} />
+                                    <Bar dataKey="value">
+                                       {officeData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
+                                    </Bar>
+                                </BarChart>
                             </ResponsiveContainer>
                         ) : <EmptyChart />}
                     </div>
@@ -1138,7 +1131,7 @@
                                             ticks={lineTrendData.ticks}
                                             tickFormatter={(unixTime) => new Date(unixTime).toLocaleDateString('ja-JP', { month: 'short' })}
                                         />
-                                        <YAxis domain={[0, dataMax => Math.max(target * 1.1, dataMax * 1.1)]} allowDecimals={false} />
+                                        <YAxis domain={[0, dataMax => Math.max(target, dataMax)]} allowDecimals={false} />
                                         <Tooltip labelFormatter={(unixTime) => new Date(unixTime).toLocaleDateString('ja-JP')} />
                                         <Legend />
                                         <Line type="monotone" dataKey="累計実績" name="累計実績" stroke="#4f46e5" strokeWidth={2} dot={false} activeDot={{ r: 8 }} />
@@ -1148,11 +1141,11 @@
                                     <ComposedChart data={barTrendData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                                         <CartesianGrid strokeDasharray="3 3" />
                                         <XAxis dataKey="month" />
-                                        <YAxis allowDecimals={false} domain={[0, dataMax => Math.max(target / 6 * 1.5, dataMax * 1.2)]} />
+                                        <YAxis allowDecimals={false} domain={[0, dataMax => Math.max(monthlyTarget * 1.5, dataMax * 1.2)]} />
                                         <Tooltip />
                                         <Legend />
                                         <Bar dataKey="月間実績" name="月間実績" fill="#4f46e5" />
-                                        <Line type="monotone" dataKey="月間目標" name="月間目標" stroke="#f59e0b" strokeWidth={2} dot={false} />
+                                        <ReferenceLine y={monthlyTarget} stroke="#f59e0b" strokeWidth={2} />
                                     </ComposedChart>
                                 )}
                             </ResponsiveContainer>
