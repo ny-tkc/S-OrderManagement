@@ -875,15 +875,15 @@
                     <h2 className="text-2xl font-bold text-gray-800">アプリケーションの更新情報 ({version})</h2>
                 </div>
                 <div className="prose max-w-none text-gray-700 max-h-[60vh] overflow-y-auto pr-4">
-                    <h3>グラフ・分析機能の強化</h3>
+                    <h3>分析機能の改善</h3>
                     <ul>
-                        <li><strong>トレンドグラフの改善:</strong> X軸（横軸）の区切り線を、各月の初日に表示されるよう修正し、月ごとの進捗がより分かりやすくなりました。</li>
-                        <li><strong>分析フィルターの追加:</strong> 「事務所別」「システム別」グラフに名称での絞り込みフィルターを追加し、より詳細な分析が可能になりました。</li>
-                        <li><strong>グラフ配色の改善:</strong> 「事務所別」グラフで、同じ件数の項目が同じ色で表示されるように改善しました。これにより、同実績の事務所の比較が容易になります。</li>
+                        <li><strong>事務所別グラフのフィルター改善:</strong> 従来のテキスト検索から、表示したい事務所を一覧から選択するチェックボックス形式に変更しました。</li>
+                        <li><strong>事務所別グラフのX軸調整:</strong> グラフの横軸（件数）の最大値が、実績の最大値と一致するように調整しました。</li>
                     </ul>
-                    <h3>使い方ガイドの更新</h3>
+                    <h3>トレンドグラフの視認性向上</h3>
                     <ul>
-                         <li>今回の更新内容に合わせて、使い方ガイドを最新の情報に更新しました。</li>
+                        <li><strong>目標ラインの修正:</strong> 目標を示すラインが、計算上の誤差なく完全な直線で表示されるようになりました。（ツールチップの数値は整数で表示されます）</li>
+                        <li><strong>月表示位置の調整:</strong> 横軸の月のラベルが、各月の区切り線の中央に表示されるようになり、期間がより直感的に分かりやすくなりました。</li>
                     </ul>
                 </div>
                 <div className="flex justify-end mt-6 border-t pt-4">
@@ -898,11 +898,44 @@
       const AnalysisView = ({ items, period, target, viewType }) => {
         const [systemChartType, setSystemChartType] = useState('pie');
         const [trendChartType, setTrendChartType] = useState('line');
-        const [officeFilter, setOfficeFilter] = useState('');
+        
+        const [selectedOffices, setSelectedOffices] = useState(new Set());
+        const [officeFilterOpen, setOfficeFilterOpen] = useState(false);
+        const officeFilterRef = useRef(null);
+
         const [systemFilter, setSystemFilter] = useState('');
 
         const COLORS = ['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#3b82f6', '#ec4899'];
+
+        useEffect(() => {
+            const handleClickOutside = (event) => {
+                if (officeFilterRef.current && !officeFilterRef.current.contains(event.target)) {
+                    setOfficeFilterOpen(false);
+                }
+            };
+            document.addEventListener("mousedown", handleClickOutside);
+            return () => document.removeEventListener("mousedown", handleClickOutside);
+        }, [officeFilterRef]);
         
+        const allOfficeNames = useMemo(() => {
+            if (!items || items.length === 0) return [];
+            const names = new Set();
+            items.forEach(item => item.officeName && names.add(item.officeName));
+            return Array.from(names).sort();
+        }, [items]);
+
+        const handleOfficeSelect = (officeName) => {
+            setSelectedOffices(prev => {
+                const newSet = new Set(prev);
+                if (newSet.has(officeName)) {
+                    newSet.delete(officeName);
+                } else {
+                    newSet.add(officeName);
+                }
+                return newSet;
+            });
+        };
+
         const officeData = useMemo(() => {
             if (!items || items.length === 0) return [];
             const counts = items.reduce((acc, item) => {
@@ -925,13 +958,12 @@
 
             data = data.map(d => ({ ...d, fill: colorMap[d.value] }));
 
-            if (officeFilter) {
-                const lowerFilter = officeFilter.toLowerCase();
-                data = data.filter(d => d.name.toLowerCase().includes(lowerFilter));
+            if (selectedOffices.size > 0) {
+                data = data.filter(d => selectedOffices.has(d.name));
             }
 
             return data;
-        }, [items, officeFilter]);
+        }, [items, selectedOffices]);
 
         const systemData = useMemo(() => {
             if (!items || items.length === 0) return [];
@@ -959,7 +991,7 @@
         }, [items, viewType, systemFilter]);
 
         const lineTrendData = useMemo(() => {
-            if (!items || !period.startDate || !period.endDate || target <= 0) return { data: [], ticks: [] };
+            if (!items || !period.startDate || !period.endDate || target <= 0) return { data: [], ticks: [], gridTicks: [] };
 
             const start = new Date(period.startDate);
             start.setHours(0, 0, 0, 0);
@@ -986,21 +1018,30 @@
                     date: currentDate.getTime(),
                     dateLabel: `${currentDate.getFullYear()}/${String(currentDate.getMonth() + 1).padStart(2, '0')}/${String(currentDate.getDate()).padStart(2, '0')}`,
                     累計実績: cumulativeCount,
-                    目標: Math.round(targetProgress),
+                    目標: targetProgress,
                 });
             }
             
             const ticks = [];
+            const gridTicks = [];
             let iter = new Date(start.getFullYear(), start.getMonth(), 1);
-            while (iter < start) {
-                iter.setMonth(iter.getMonth() + 1);
-            }
-            while (iter <= end) {
-                ticks.push(iter.getTime());
+            if (iter < start) {
                 iter.setMonth(iter.getMonth() + 1);
             }
 
-            return { data, ticks };
+            while (iter <= end) {
+                gridTicks.push(iter.getTime());
+                const midMonth = new Date(iter.getFullYear(), iter.getMonth(), 15);
+                if (midMonth >= start && midMonth <= end) {
+                    ticks.push(midMonth.getTime());
+                }
+                iter.setMonth(iter.getMonth() + 1);
+            }
+            if (ticks.length === 0 && gridTicks.length > 0) {
+                 ticks.push(start.getTime() + (end.getTime() - start.getTime()) / 2);
+            }
+
+            return { data, ticks, gridTicks };
         }, [items, period, target]);
 
         const { barTrendData, monthlyTarget } = useMemo(() => {
@@ -1084,20 +1125,40 @@
                 <div className="bg-white p-6 rounded-lg shadow-md lg:col-span-1">
                     <div className="flex justify-between items-center mb-4">
                         <h3 className="text-lg font-semibold text-gray-800">事務所別 件数</h3>
-                        <input
-                            type="text"
-                            placeholder="事務所名で絞り込み..."
-                            value={officeFilter}
-                            onChange={(e) => setOfficeFilter(e.target.value)}
-                            className="border rounded px-2 py-1 text-sm w-48"
-                        />
+                         <div className="relative" ref={officeFilterRef}>
+                            <button 
+                                onClick={() => setOfficeFilterOpen(!officeFilterOpen)} 
+                                className="border rounded px-3 py-1 text-sm bg-white hover:bg-gray-50 flex items-center"
+                            >
+                                <span>{selectedOffices.size > 0 ? `${selectedOffices.size}件 選択` : '事務所を選択'}</span>
+                                <svg className="w-4 h-4 ml-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                            </button>
+                            {officeFilterOpen && (
+                                <div className="absolute z-20 right-0 mt-2 w-64 bg-white border border-gray-200 rounded-md shadow-lg max-h-80 overflow-y-auto">
+                                    <div className="p-2 border-b">
+                                        <button onClick={() => setSelectedOffices(new Set())} className="text-xs text-blue-600 hover:underline">すべてクリア</button>
+                                    </div>
+                                    {allOfficeNames.map(name => (
+                                        <label key={name} className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">
+                                            <input 
+                                                type="checkbox" 
+                                                className="form-checkbox h-4 w-4 text-indigo-600 border-gray-300 rounded"
+                                                checked={selectedOffices.has(name)} 
+                                                onChange={() => handleOfficeSelect(name)} 
+                                            />
+                                            <span className="ml-3 truncate">{name}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
                     </div>
                      <div className="w-full h-96">
                         {officeData.length > 0 ? (
                              <ResponsiveContainer>
                                 <BarChart data={officeData} layout="vertical" margin={{ top: 5, right: 20, left: 100, bottom: 5 }}>
                                     <CartesianGrid strokeDasharray="3 3" />
-                                    <XAxis type="number" allowDecimals={false} />
+                                    <XAxis type="number" allowDecimals={false} domain={[0, 'dataMax']} />
                                     <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 12 }} />
                                     <Tooltip formatter={(value) => [`${value}件`, '件数']} />
                                     <Bar dataKey="value">
@@ -1105,7 +1166,7 @@
                                     </Bar>
                                 </BarChart>
                             </ResponsiveContainer>
-                        ) : <EmptyChart message={officeFilter ? "フィルターに一致するデータがありません。" : "表示するデータがありません。"} />}
+                        ) : <EmptyChart message={selectedOffices.size > 0 ? "フィルターに一致するデータがありません。" : "表示するデータがありません。"} />}
                     </div>
                 </div>
 
@@ -1162,7 +1223,7 @@
                              <ResponsiveContainer>
                                 {trendChartType === 'line' ? (
                                     <LineChart data={lineTrendData.data} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                                        <CartesianGrid strokeDasharray="3 3" />
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false}/>
                                         <XAxis 
                                             dataKey="date" 
                                             type="number"
@@ -1172,8 +1233,15 @@
                                             tickFormatter={(unixTime) => new Date(unixTime).toLocaleDateString('ja-JP', { month: 'short' })}
                                         />
                                         <YAxis domain={[0, dataMax => Math.max(target, dataMax)]} allowDecimals={false} />
-                                        <Tooltip labelFormatter={(unixTime) => new Date(unixTime).toLocaleDateString('ja-JP')} />
+                                        <Tooltip 
+                                            labelFormatter={(unixTime) => new Date(unixTime).toLocaleDateString('ja-JP')}
+                                            formatter={(value, name) => {
+                                                const formattedValue = (name === '目標') ? Math.round(value) : value;
+                                                return [formattedValue, name];
+                                            }}
+                                        />
                                         <Legend />
+                                        {lineTrendData.gridTicks.map(tick => <ReferenceLine key={tick} x={tick} stroke="#ccc" strokeDasharray="3 3" />)}
                                         <Line type="monotone" dataKey="累計実績" name="累計実績" stroke="#4f46e5" strokeWidth={2} dot={false} activeDot={{ r: 8 }} />
                                         <Line type="linear" dataKey="目標" name="目標" stroke="#f59e0b" strokeWidth={2} strokeDasharray="5 5" dot={false} />
                                     </LineChart>
@@ -1519,8 +1587,9 @@
                             <li><strong>クラウド移行の計算:</strong> 純増数は <code>期首累計 + 当期移行 + 新規受注 - 解約</code> で計算されます。右側の「？」アイコンで詳細を確認できます。</li>
                             <li><strong>分析タブ:</strong>
                                 <ul>
-                                    <li><strong>トレンドグラフ:</strong> 目標に対する進捗を視覚的に確認できます。X軸（横軸）の区切り線が<strong>各月の初日</strong>に表示されるようになり、月ごとの進捗が把握しやすくなりました。</li>
-                                    <li><strong>事務所別・システム別グラフ:</strong> グラフ上部の入力欄から、名称で表示内容を<strong>絞り込む</strong>ことができます。また、事務所別グラフでは同じ件数の項目は<strong>同じ色</strong>で表示されます。</li>
+                                    <li><strong>トレンドグラフ:</strong> 目標ラインが<strong>完全な直線</strong>で表示され、進捗をより正確に視覚化できるようになりました。また、X軸の<strong>月のラベルが中央に配置</strong>され、期間の把握がしやすくなりました。</li>
+                                    <li><strong>事務所別グラフ:</strong> グラフ上部のボタンから、表示したい事務所を<strong>チェックボックスで選択</strong>して絞り込めます。同じ件数の項目は同じ色で表示されます。</li>
+                                    <li><strong>システム別グラフ:</strong> グラフ上部の入力欄から、名称で表示内容を絞り込めます。</li>
                                     <li><strong>解約理由分析（解約ビューのみ）:</strong> 登録された解約理由をグラフで表示し、どの理由が多いかを一目で把握できます。</li>
                                 </ul>
                             </li>
