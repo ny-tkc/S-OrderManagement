@@ -1,5 +1,5 @@
 {
-  "name": "Copy of （★）【ソフトウェア】受注管理ツール",
-  "description": "受注目標の達成状況を追跡、分析するためのウェブアプリケーションです。データはローカルに保存され、期間ごとのサマリーや詳細な分析機能を提供します。(A web application for tracking and analyzing order achievement status. Data is saved locally, providing summaries for each period and detailed analysis functions.)",
+  "name": "（★）【ソフトウェア】受注管理ツール",
+  "description": "受注目標の達成状況を追跡、分析するためのウェブアプリケーションです。データはローカルに保存され、期間ごとのサマリーや詳細な分析機能を提供します。",
   "requestFramePermissions": []
 }
