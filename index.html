@@ -1,2132 +1,904 @@
 <!DOCTYPE html>
 <html lang="ja">
-  <head>
+<head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ソフトウェア受注管理ツール</title>
+    <title>受発注管理ツール</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/@babel/standalone@7.12.15/babel.min.js"></script>
-    <script type="importmap">
-      {
-        "imports": {
-          "react": "https://aistudiocdn.com/react@^19.1.1",
-          "react-dom/": "https://aistudiocdn.com/react-dom@^19.1.1/",
-          "react/": "https://aistudiocdn.com/react@^19.1.1/",
-          "uuid": "https://aistudiocdn.com/uuid@^13.0.0",
-          "recharts": "https://aistudiocdn.com/recharts@^2.12.7"
-        }
-      }
-    </script>
+    <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <style>
-      .modal-overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background-color: rgba(0, 0, 0, 0.5);
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        z-index: 1000;
-      }
-      .modal-content {
-        background-color: white;
-        padding: 2rem;
-        border-radius: 0.5rem;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        width: 90%;
-        max-width: 1152px; /* Increased width further */
-      }
-      .filter-panel {
+      /* Simple transition for collapsible filter */
+      .filter-content {
         max-height: 0;
         overflow: hidden;
-        transition: max-height 0.5s ease-in-out, padding 0.5s ease-in-out;
-        padding-top: 0;
-        padding-bottom: 0;
+        transition: max-height 0.4s ease-in-out;
       }
-      .filter-panel.visible {
-        max-height: 500px; /* Adjust as needed */
-        padding-top: 1rem;
-        padding-bottom: 1rem;
+      .filter-content.open {
+        max-height: 600px; /* Adjust as needed */
       }
-      .achievement-stamp {
-        position: absolute;
-        top: 0.5rem; /* 8px */
-        right: 0.5rem; /* 8px */
-        transform: rotate(15deg);
-        font-size: 1.5rem; /* Reduced font size */
-        font-weight: bold;
-        color: red;
-        border: 4px solid red; /* Adjusted border */
-        border-radius: 5px;
-        padding: 0.1rem 0.5rem;
-        opacity: 0.8;
-        pointer-events: none;
-        z-index: 10;
+      /* Ensure sticky header has a background and stays on top */
+      .sticky-header {
+          position: sticky;
+          top: 0;
+          z-index: 10;
+          background-color: #f1f5f9; /* bg-slate-100 */
       }
-      .rainbow-text {
-        background-image: linear-gradient(45deg, #ff0000, #ff7f00, #ffff00, #00ff00, #0000ff, #4b0082, #9400d3);
-        background-size: 200% 200%;
-        -webkit-background-clip: text;
-        background-clip: text;
-        color: transparent;
-        animation: rainbow-animation 3s ease infinite;
+      .goal-success-toast {
+        animation: fadeInOut 3s ease-in-out;
       }
-      @keyframes rainbow-animation {
-        0%{background-position:0% 50%}
-        50%{background-position:100% 50%}
-        100%{background-position:0% 50%}
+      @keyframes fadeInOut {
+        0% { opacity: 0; transform: translateY(-10px); }
+        20% { opacity: 1; transform: translateY(0); }
+        80% { opacity: 1; transform: translateY(0); }
+        100% { opacity: 0; transform: translateY(-10px); }
       }
-      /* Column Resizing Styles */
-      .resizable-table th {
-        position: relative;
-      }
-       /* Add a visible separator line to indicate resizability */
-      .resizable-table th:not(:last-child)::after {
-        content: '';
-        position: absolute;
-        top: 25%;
-        right: 0;
-        height: 50%;
-        width: 1px;
-        background-color: #d1d5db; /* gray-300 */
-      }
-      .resizer {
-        position: absolute;
-        top: 0;
-        right: -4px; /* Center the grab area on the line */
-        width: 9px;
-        cursor: col-resize;
-        user-select: none;
-        height: 100%;
-        z-index: 10;
-      }
-      .resizer:hover, .resizing {
-        background-color: rgba(165, 180, 252, 0.5); /* Semi-transparent indigo for better visibility */
-      }
-      /* Button Pulse Animation */
-      .btn-pulse {
-          animation: pulse-animation 2s infinite;
-      }
-      @keyframes pulse-animation {
-          0% { box-shadow: 0 0 0 0 rgba(96, 165, 250, 0.7); }
-          70% { box-shadow: 0 0 0 10px rgba(96, 165, 250, 0); }
-          100% { box-shadow: 0 0 0 0 rgba(96, 165, 250, 0); }
-      }
-      /* For Recharts */
-      .recharts-responsive-container {
-        min-height: 400px;
-      }
-       /* Prose styles for info modals */
-      .prose h3 { font-size: 1.25rem; font-weight: 600; margin-bottom: 0.5rem; margin-top: 1.5rem; }
-      .prose p { margin-bottom: 1rem; line-height: 1.6; }
-      .prose ul { list-style-type: disc; margin-left: 1.5rem; margin-bottom: 1rem; }
-      .prose li { margin-bottom: 0.5rem; }
-      .prose strong { font-weight: 600; }
-      .prose code { background-color: #e5e7eb; padding: 0.2rem 0.4rem; border-radius: 0.25rem; font-size: 0.9em; }
     </style>
 <link rel="stylesheet" href="/index.css">
 </head>
-  <body class="bg-gray-100">
+<body class="bg-slate-100 text-slate-800">
     <div id="root"></div>
-    <script type="text/babel" data-type="module">
-      import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
-      import ReactDOM from 'react-dom/client';
-      import { v4 as uuidv4 } from 'uuid';
-      import {
-        ResponsiveContainer, BarChart, PieChart, LineChart, ComposedChart,
-        Bar, Pie, Line, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine
-      } from 'recharts';
+    <script type="text/babel">
+      const { useState, useMemo, useCallback, useEffect, useRef } = React;
 
-      // --- Constants and Services ---
-      const CURRENT_APP_VERSION = '2024.08.05';
+      // --- CONSTANTS ---
+      const TASKS = [
+        'ネゴ提案', '見積提示', '注文作成', '本社発注', '日程調整',
+        '現地調整', '検収作成', '検収送付', '保守作成', '保守送付'
+      ];
+      const CUSTOMER_CATEGORIES = ['会計事務所', '関与先'];
+      const DIVISIONS = ['新規', 'リプレイス', 'その他'];
+      const PRODUCT_TYPES = ['PC', 'スキャナ', 'プリンタ', 'ルータ', 'その他'];
+      const PAYMENT_TYPES = ['COD', 'MIST', '後払い'];
+      const SETUP_OPTIONS = ['なし', 'あり (SCG)', 'あり (Q&A)', 'あり (NSG)'];
+      const MAINTENANCE_OPTIONS = ['あり', 'なし'];
+      const STATUS_OPTIONS = ['すべて', '受注済み', '完了済み', '失注'];
+      const SORT_OPTIONS = {
+        'registrationDate_desc': '登録日が新しい順',
+        'registrationDate_asc': '登録日が古い順',
+        'mainAmount_desc': '金額が高い順',
+        'mainAmount_asc': '金額が低い順',
+      };
       
-      function useLocalStorage(key, initialValue) {
-        const [storedValue, setStoredValue] = useState(() => {
-          try {
-            const item = window.localStorage.getItem(key);
-            return item ? JSON.parse(item) : initialValue;
-          } catch (error) {
-            console.error(error);
-            return initialValue;
-          }
-        });
+      const JAPANESE_HOLIDAYS = new Set([
+        // 2025
+        '2025-01-01', '2025-01-13', '2025-02-11', '2025-02-24', '2025-03-20', '2025-04-29', '2025-05-03', '2025-05-04', '2025-05-05', '2025-05-06', '2025-07-21', '2025-08-11', '2025-09-15', '2025-09-23', '2025-10-13', '2025-11-03', '2025-11-24',
+        // 2026
+        '2026-01-01', '2026-01-12', '2026-02-11', '2026-02-23', '2026-03-20', '2026-04-29', '2026-05-03', '2026-05-04', '2026-05-05', '2026-05-6', '2026-07-20', '2026-08-11', '2026-09-21', '2026-09-22', '2026-09-23', '2026-10-12', '2026-11-03', '2026-11-23',
+      ]);
 
-        const setValue = (value) => {
-          try {
-            const valueToStore = value instanceof Function ? value(storedValue) : value;
-            setStoredValue(valueToStore);
-            window.localStorage.setItem(key, JSON.stringify(valueToStore));
-          } catch (error) {
-            console.error(error);
+      // --- HELPERS ---
+      const getVisibleTasks = (project) => {
+          let visible = [...TASKS];
+          if (project.division === '新規') {
+              visible = visible.filter(t => t !== 'ネゴ提案');
           }
-        };
+          if (project.paymentType === 'COD' && project.setup === 'なし') {
+              visible = visible.filter(t => t !== '検収作成' && t !== '検収送付');
+          }
+          if (project.maintenance === 'なし') {
+              visible = visible.filter(t => t !== '保守作成' && t !== '保守送付');
+          }
+          return visible;
+      };
 
-        return [storedValue, setValue];
+      // --- ICONS ---
+      const PlusIcon = ({ className = "w-6 h-6" }) => (<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>);
+      const XIcon = ({ className = "w-6 h-6" }) => (<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>);
+      const ChevronUpIcon = ({ className = "w-6 h-6" }) => (<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}><path strokeLinecap="round" strokeLinejoin="round" d="m4.5 15.75 7.5-7.5 7.5 7.5" /></svg>);
+      const EditIcon = ({className}) => (<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}><path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" /></svg>);
+      const TrashIcon = ({className}) => (<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}><path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.134-2.033-2.134H8.033C6.91 2.75 6 3.704 6 4.884v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg>);
+      const ArrowCircleRightIcon = ({className}) => (<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}><path strokeLinecap="round" strokeLinejoin="round" d="M12.75 15l3-3m0 0l-3-3m3 3h-7.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>);
+      const NoSymbolIcon = ({className}) => (<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}><path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636" /></svg>);
+      const DocumentTextIcon = ({className}) => (<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" /></svg>);
+      const CheckIcon = ({ className = "w-6 h-6" }) => (<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className={className}><path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" /></svg>);
+      const RefreshIcon = ({className}) => (<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className}><path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 11.664 0l3.181-3.183m-3.181-4.991-3.181-3.183a8.25 8.25 0 0 0-11.664 0l-3.181 3.183" /></svg>);
+
+      // --- HOOKS ---
+      const usePeriodCalculator = () => {
+          const generatePeriods = () => {
+              const periods = [];
+              const startYear = 2025; // R7
+              const startPeriod = 60;
+              for (let i = 0; i < 5; i++) {
+                  const year = startYear + i;
+                  const period = startPeriod + i;
+                  const reiwaYear = year - 2018;
+                  periods.push({
+                      label: `第${period}期 上期 (R${reiwaYear}年10月～R${reiwaYear + 1}年3月)`,
+                      value: `${period}-1`,
+                      startDate: new Date(year, 9, 1),
+                      endDate: new Date(year + 1, 2, 31),
+                  });
+                  periods.push({
+                      label: `第${period}期 下期 (R${reiwaYear + 1}年4月～R${reiwaYear + 1}年9月)`,
+                      value: `${period}-2`,
+                      startDate: new Date(year + 1, 3, 1),
+                      endDate: new Date(year + 1, 8, 30),
+                  });
+              }
+              return periods;
+          };
+
+          const allPeriods = useMemo(generatePeriods, []);
+          
+          const getCurrentPeriod = () => {
+              const now = new Date();
+              return allPeriods.find(p => now >= p.startDate && now <= p.endDate) || allPeriods[0];
+          }
+
+          const [selectedPeriod, setSelectedPeriod] = useState(getCurrentPeriod().value);
+          
+          const calculateBusinessDays = useCallback((endDate) => {
+              let count = 0;
+              const curDate = new Date();
+              if(curDate > endDate) return 0;
+              
+              while (curDate <= endDate) {
+                  const dayOfWeek = curDate.getDay();
+                  const dateString = curDate.toISOString().split('T')[0];
+                  if (dayOfWeek !== 0 && dayOfWeek !== 6 && !JAPANESE_HOLIDAYS.has(dateString)) {
+                      count++;
+                  }
+                  curDate.setDate(curDate.getDate() + 1);
+              }
+              return count;
+          }, []);
+
+          const remainingBusinessDays = useMemo(() => {
+              const period = allPeriods.find(p => p.value === selectedPeriod);
+              return period ? calculateBusinessDays(period.endDate) : 0;
+          }, [selectedPeriod, allPeriods, calculateBusinessDays]);
+
+          return { periods: allPeriods, selectedPeriod, setSelectedPeriod, remainingBusinessDays };
       }
 
-      const generateFiscalPeriods = () => {
-        const periods = [];
-        const baseYearForTermCalc = 2024; // 第59期の開始年
-
-        for (let term = 59; term <= 65; term++) {
-          const startYearOfTerm = baseYearForTermCalc + (term - 59);
-
-          // 上期: 10月1日〜翌年3月31日
-          const firstHalfStart = new Date(startYearOfTerm, 9, 1);
-          const firstHalfEnd = new Date(startYearOfTerm + 1, 2, 31);
-          periods.push({
-            id: `${term}-1`,
-            name: `第${term}期 上期`,
-            startDate: firstHalfStart,
-            endDate: firstHalfEnd,
-          });
-
-          // 下期: 4月1日〜9月30日
-          const secondHalfStart = new Date(startYearOfTerm + 1, 3, 1);
-          const secondHalfEnd = new Date(startYearOfTerm + 1, 8, 30);
-          periods.push({
-            id: `${term}-2`,
-            name: `第${term}期 下期`,
-            startDate: secondHalfStart,
-            endDate: secondHalfEnd,
-          });
-        }
-        return periods;
-      };
-
-      const getCurrentPeriod = (periods) => {
-        const now = new Date();
-        return periods.find(p => now >= new Date(p.startDate) && now <= new Date(p.endDate));
-      };
-
-      const parsePastedData = (text, selectedPeriod, existingItems = [], dataType = 'orders') => {
-          // Normalize line endings and filter out empty lines.
-          const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(line => line.trim() !== '');
-          const newItems = [];
-          const errors = [];
-          const warnings = []; // Add warnings array
-          if (lines.length === 0) return { newItems, errors, warnings, };
-          
-          const delimiter = lines[0].includes('\t') ? '\t' : (lines[0].includes(',') ? ',' : ' ');
-
-          let dataLines = lines;
-          let headerSkipped = false;
-
-          // Header detection
-          if (lines.length > 0) {
-              const firstLineParts = lines[0].split(delimiter);
-              if (firstLineParts.length > 1 && !/^\d{8}$/.test(firstLineParts[1].replace(/"/g, '').trim())) {
-                  dataLines = lines.slice(1);
-                  headerSkipped = true;
-              }
-          }
-
-          dataLines.forEach((line, index) => {
-              const originalLineNumber = index + 1 + (headerSkipped ? 1 : 0);
-              try {
-                  const parts = delimiter === ' ' ? line.split(/\s+/).filter(Boolean) : line.split(delimiter);
-                  
-                  const dateRaw = parts[1].replace(/"/g, '').trim();
-                  if (!/^\d{8}$/.test(dateRaw)) {
-                      throw new Error('日付の形式が不正です (必須形式: YYYYMMDD)。');
-                  }
-                  const orderDate = `${dateRaw.substring(0, 4)}-${dateRaw.substring(4, 6)}-${dateRaw.substring(6, 8)}`;
-                  
-                  const orderDateObj = new Date(orderDate);
-                   if (isNaN(orderDateObj.getTime())) {
-                      throw new Error('日付が無効です。');
-                  }
-                  orderDateObj.setHours(0, 0, 0, 0);
-                  const periodStartDate = new Date(selectedPeriod.startDate);
-                  periodStartDate.setHours(0,0,0,0);
-                  const periodEndDate = new Date(selectedPeriod.endDate);
-                  periodEndDate.setHours(0,0,0,0);
-
-                  if (orderDateObj < periodStartDate || orderDateObj > periodEndDate) {
-                      throw new Error(`受注日は選択された期間（${selectedPeriod.name}）内に設定してください。`);
-                  }
-                  
-                  if (dataType === 'orders') {
-                      if (parts.length < 7) throw new Error('列の数が不足しています。');
-                      const officeCode = parts[2].replace(/"/g, '').trim();
-                      const officeName = parts[3].replace(/"/g, '').trim();
-                      const clientCode = parts[4].replace(/"/g, '').trim();
-                      const clientName = parts[5].replace(/"/g, '').trim();
-                      let system = parts[6].replace(/"/g, '').trim();
-
-                      if (!officeCode || !officeName || !clientCode || !clientName || !system) {
-                          throw new Error('必須項目（事務所コード, 事務所名, 分類コード, 関与先名, システム）が空です。');
-                      }
-                      
-                      system = system.replace(/[\s　]*(関与先)?(セットアップライセンス|ｾｯﾄｱｯﾌﾟﾗｲｾﾝｽ)/g, '').trim();
-                      
-                      newItems.push({ id: uuidv4(), periodId: selectedPeriod.id, orderDate, officeCode, officeName, clientCode, clientName, system, isTransferred: false });
-                  } else if (dataType === 'cancellations') {
-                      if (parts.length < 8) throw new Error('列の数が不足しています。必要な列は8列以上です。');
-                      const officeCode = parts[3].replace(/"/g, '').trim();
-                      const officeName = parts[4].replace(/"/g, '').trim();
-                      const clientCode = parts[5].replace(/"/g, '').trim();
-                      const clientName = parts[6].replace(/"/g, '').trim();
-                      const system = parts[7].replace(/"/g, '').trim();
-                      const cancellationReason = parts.length > 9 ? parts[9].replace(/"/g, '').trim() : '';
-
-                      if (!officeCode || !officeName || !clientCode || !clientName || !system) {
-                          throw new Error('必須項目（事務所コード, 事務所名, 分類コード, 関与先名, システム）が空です。');
-                      }
-                      
-                      newItems.push({ id: uuidv4(), periodId: selectedPeriod.id, orderDate, officeCode, officeName, clientCode, clientName, system, cancellationReason, isTransferred: false });
-                  } else { // 'migrations'
-                      if (parts.length < 11) throw new Error('列の数が不足しています。');
-                      const officeCode = parts[3].replace(/"/g, '').trim();
-                      const officeName = parts[4].replace(/"/g, '').trim();
-                      const clientCode = parts[5].replace(/"/g, '').trim();
-                      const clientName = parts[6].replace(/"/g, '').trim();
-                      const beforeSystem = parts[9].replace(/"/g, '').trim();
-                      const afterSystem = parts[10].replace(/"/g, '').trim();
-
-                      if (!officeCode || !officeName || !clientCode || !clientName || !beforeSystem || !afterSystem) {
-                          throw new Error('必須項目（事務所コード, 事務所名, 分類コード, 関与先名, 変更前/後システム）が空です。');
-                      }
-                      
-                      // NOTE: Warning generation is disabled during parsing as per user request.
-                      // It will be handled by the post-registration alert system.
-                      // if (beforeSystem.includes('クラウド') || beforeSystem.includes('ｸﾗｳﾄﾞ')) {
-                      //     warnings.push(`行 ${originalLineNumber}: 変更前システム「${beforeSystem}」に「クラウド」が含まれています。これはクラウド移行の対象ではない可能性があります。`);
-                      // }
-                      
-                      newItems.push({ id: uuidv4(), periodId: selectedPeriod.id, orderDate, officeCode, officeName, clientCode, clientName, beforeSystem, afterSystem });
-                  }
-              } catch (error) {
-                  errors.push(`行 ${originalLineNumber}: ${error.message} - "${line}"`);
-              }
-          });
-          return { newItems, errors, warnings };
-      };
-
-
-      // --- Components ---
-
-      const SummaryCard = ({ title, value, suffix, color, subValue, isAchieved, compact = false, secondary }) => (
-        <div className={`bg-white ${compact ? 'p-3' : 'p-6'} rounded-lg shadow-md flex flex-col justify-between items-center text-center relative h-full`}>
-            <div>
-                {isAchieved && <div className="achievement-stamp">達成</div>}
-                <h3 className={`text-gray-500 ${compact ? 'text-sm' : 'text-lg'} font-semibold mb-2`}>{title}</h3>
-                <div>
-                    <p className={`${compact ? 'text-3xl' : 'text-5xl'} font-bold ${color}`}>
-                        {value}
-                        {suffix && <span className={`${compact ? 'text-lg' : 'text-2xl'} ml-1`}>{suffix}</span>}
-                    </p>
-                    {subValue && !secondary && <p className={`${compact ? 'text-xs' : 'text-sm'} text-gray-500 mt-1`}>{subValue}</p>}
-                </div>
-            </div>
-            {secondary && (
-                <div className={`mt-2 ${compact ? 'pt-2 border-t' : 'pt-4 border-t-2'} w-full`}>
-                    <h4 className="text-gray-500 text-xs font-semibold">{secondary.title}</h4>
-                    <p className={`text-4xl font-bold ${secondary.color}`}>
-                        {secondary.value}
-                        {secondary.suffix && <span className="text-xl ml-1">{secondary.suffix}</span>}
-                    </p>
-                </div>
-            )}
-        </div>
-      );
+      // --- COMPONENTS ---
+      const Input = (props) => <input {...props} className="block w-full px-3 py-2 bg-slate-100 border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" />;
+      const Select = (props) => <select {...props} className="block w-full px-3 py-2 bg-slate-100 border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" />;
+      const Label = ({htmlFor, children}) => <label htmlFor={htmlFor} className="block text-sm font-medium text-slate-700 mb-1">{children}</label>;
       
-      const EditableSummaryCard = ({ title, value, suffix, color, onSave, subValue, editInitialValue, compact = false }) => {
-        const [isEditing, setIsEditing] = useState(false);
-        const [editValue, setEditValue] = useState(editInitialValue !== undefined ? editInitialValue : value);
-        const inputRef = useRef(null);
+      const ModalInput = React.forwardRef((props, ref) => <input {...props} ref={ref} className="mt-1 block w-full px-3 py-2 bg-white border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" />);
+      const ModalSelect = (props) => <select {...props} className="mt-1 block w-full px-3 py-2 bg-white border border-slate-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" />;
+      const ModalTextarea = (props) => <textarea {...props} rows="3" className="mt-1 block w-full px-3 py-2 bg-white border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" />;
+      const ModalLabel = ({htmlFor, children}) => <label htmlFor={htmlFor} className="block text-sm font-medium text-slate-700">{children}</label>;
 
-        useEffect(() => {
-            setEditValue(editInitialValue !== undefined ? editInitialValue : value);
-        }, [value, editInitialValue]);
-        
-        useEffect(() => {
-            if (isEditing) {
-                inputRef.current?.focus();
-                inputRef.current?.select();
-            }
-        }, [isEditing]);
-
-        const handleSave = () => {
-            if (!window.confirm(`「${title}」を${editValue}件に設定します。よろしいですか？`)) {
-                return;
-            }
-            const newValue = parseInt(editValue, 10);
-            if (!isNaN(newValue)) { // Allow negative numbers for adjustment
-                onSave(newValue);
-            } else {
-                setEditValue(editInitialValue !== undefined ? editInitialValue : value); // Revert if invalid
-            }
-            setIsEditing(false);
-        };
-        
-        const handleCancel = () => {
-          setEditValue(editInitialValue !== undefined ? editInitialValue : value);
-          setIsEditing(false);
-        };
-
-        const handleKeyDown = (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                handleSave();
-            } else if (e.key === 'Escape') {
-                handleCancel();
-            }
-        };
-        
-        if (isEditing) {
+      const ConfirmationModal = ({ isOpen, title, message, onConfirm, onCancel }) => {
+          if (!isOpen) return null;
           return (
-             <div className={`bg-white ${compact ? 'p-3' : 'p-6'} rounded-lg shadow-md flex flex-col justify-between h-full ring-2 ring-indigo-400`}>
-                  <h3 className={`text-gray-500 ${compact ? 'text-sm' : 'text-lg'} font-semibold text-center`}>{title}</h3>
-                  <div>
-                      <input
-                          ref={inputRef}
-                          type="number"
-                          value={editValue}
-                          onChange={(e) => setEditValue(e.target.value)}
-                          onKeyDown={handleKeyDown}
-                          className={`${compact ? 'text-3xl' : 'text-5xl'} font-bold w-full bg-transparent border-b-2 border-indigo-300 focus:outline-none ${color} mb-2 text-center`}
-                      />
-                      <div className="flex justify-end space-x-2 mt-2">
-                          <button onClick={handleCancel} className="text-xs px-2 py-1 rounded bg-gray-200 hover:bg-gray-300 text-gray-700">中止</button>
-                          <button onClick={handleSave} className="text-xs px-2 py-1 rounded bg-indigo-600 hover:bg-indigo-700 text-white">保存</button>
+              <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center p-4">
+                  <div className="bg-white rounded-lg shadow-xl w-full max-w-md" onClick={e => e.stopPropagation()}>
+                      <div className="p-6">
+                          <h3 className="text-lg font-bold text-slate-800">{title}</h3>
+                          <p className="mt-2 text-sm text-slate-600">{message}</p>
+                      </div>
+                      <div className="px-6 py-4 bg-slate-50 flex justify-end items-center space-x-3 rounded-b-lg">
+                          <button onClick={onCancel} className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition">キャンセル</button>
+                          <button onClick={onConfirm} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition">実行する</button>
                       </div>
                   </div>
               </div>
           );
-        }
-
-        return (
-            <div 
-                className={`bg-white ${compact ? 'p-3' : 'p-6'} rounded-lg shadow-md flex flex-col justify-center items-center text-center h-full cursor-pointer hover:shadow-lg hover:ring-2 hover:ring-indigo-400 transition relative`}
-                onClick={() => setIsEditing(true)}
-            >
-                <div className={`absolute ${compact ? 'top-3 right-3' : 'top-4 right-4'}`}>
-                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.536L16.732 3.732z" /></svg>
-                </div>
-                <h3 className={`text-gray-500 ${compact ? 'text-sm' : 'text-lg'} font-semibold mb-2`}>{title}</h3>
-                <div>
-                    <p className={`${compact ? 'text-3xl' : 'text-5xl'} font-bold ${color}`}>
-                        {value}
-                        {suffix && <span className={`${compact ? 'text-lg' : 'text-2xl'} ml-1`}>{suffix}</span>}
-                    </p>
-                    {subValue && <p className={`${compact ? 'text-xs' : 'text-sm'} text-gray-500 mt-1`}>{subValue}</p>}
-                </div>
-            </div>
-        );
       };
 
-      const DetailsView = ({ items, offices, systems, onDeleteItem, onToggleTransfer, viewType }) => {
-        const [filterText, setFilterText] = useState('');
-        const [filterOffice, setFilterOffice] = useState('');
-        const [filterSystem, setFilterSystem] = useState('');
-        const [filterStartDate, setFilterStartDate] = useState('');
-        const [filterEndDate, setFilterEndDate] = useState('');
-        const [sortConfig, setSortConfig] = useState({ key: 'orderDate', direction: 'descending' });
-        const [filtersVisible, setFiltersVisible] = useState(false);
-        const [colWidths, setColWidths] = useLocalStorage(`colWidths-${viewType}`, 
-            viewType === 'orders'
-                ? { orderDate: 120, officeCode: 250, clientCode: 120, clientName: 250, system: 250, actions: 120 }
-                : viewType === 'cancellations'
-                ? { orderDate: 120, officeCode: 200, clientCode: 100, clientName: 200, system: 200, cancellationReason: 250, actions: 120 }
-                : { orderDate: 120, officeCode: 250, clientCode: 120, clientName: 250, beforeSystem: 250, afterSystem: 250, actions: 80 }
-        );
-        const tableRef = useRef(null);
-        const isResizing = useRef(null);
+      const NewProjectModal = ({ isOpen, onClose, onSaveProject, editingProject }) => {
+        const isEditMode = !!editingProject;
+        const dateInputRef = useRef(null);
 
-        const handleMouseDown = useCallback((e, key) => {
-            isResizing.current = {
-                key,
-                startX: e.clientX,
-                startWidth: colWidths[key],
+        const getInitialState = (project = null) => {
+            if (project) return { setupAmount: 0, isLost: false, ...project };
+            return {
+                category: CUSTOMER_CATEGORIES[0], clientName: '', registrationDate: new Date().toISOString().split('T')[0],
+                mainAmount: 0, projectName: '', division: DIVISIONS[0], productType: PRODUCT_TYPES[0],
+                paymentType: PAYMENT_TYPES[0], setup: SETUP_OPTIONS[0], maintenance: MAINTENANCE_OPTIONS[0], memo: '', setupAmount: 0, isLost: false,
             };
-            document.addEventListener('mousemove', handleMouseMove);
-            document.addEventListener('mouseup', handleMouseUp);
-        }, [colWidths]);
-        
-        const handleMouseMove = useCallback((e) => {
-            if (!isResizing.current) return;
-            const { key, startX, startWidth } = isResizing.current;
-            const newWidth = startWidth + (e.clientX - startX);
-            if (newWidth > 50) {
-                 setColWidths(prev => ({...prev, [key]: newWidth}));
-            }
-        }, []);
-
-        const handleMouseUp = useCallback(() => {
-            isResizing.current = null;
-            document.removeEventListener('mousemove', handleMouseMove);
-            document.removeEventListener('mouseup', handleMouseUp);
-        }, []);
-
-        const requestSort = (key) => {
-            let direction = 'ascending';
-            if (sortConfig.key === key && sortConfig.direction === 'ascending') {
-                direction = 'descending';
-            }
-            setSortConfig({ key, direction });
         };
         
-        const sortedAndFilteredItems = useMemo(() => {
-            let filtered = [...items];
-            
-            if (filterText) {
-                const lowerFilterText = filterText.toLowerCase();
-                filtered = filtered.filter(order => 
-                    order.clientName.toLowerCase().includes(lowerFilterText) ||
-                    (order.clientCode && order.clientCode.toLowerCase().includes(lowerFilterText))
-                );
-            }
-            if(filterOffice){
-                filtered = filtered.filter(order => order.officeCode === filterOffice);
-            }
-            if(filterSystem){
-                filtered = filtered.filter(order => order.system === filterSystem);
-            }
-            if(filterStartDate){
-                filtered = filtered.filter(order => new Date(order.orderDate) >= new Date(filterStartDate));
-            }
-            if(filterEndDate){
-                 filtered = filtered.filter(order => new Date(order.orderDate) <= new Date(filterEndDate));
-            }
+        const [formState, setFormState] = useState(getInitialState(editingProject));
+        const [step, setStep] = useState(1);
 
-            filtered.sort((a, b) => {
-                let valA = a[sortConfig.key];
-                let valB = b[sortConfig.key];
-                
-                if (sortConfig.key === 'officeCode') {
-                    valA = a.officeName || '';
-                    valB = b.officeName || '';
-                }
+        const availableProductTypes = useMemo(() => {
+            if (formState.category === '関与先') return PRODUCT_TYPES.filter(p => p !== 'ルータ');
+            return PRODUCT_TYPES;
+        }, [formState.category]);
 
-                if (valA < valB) {
-                    return sortConfig.direction === 'ascending' ? -1 : 1;
+        const availablePaymentTypes = useMemo(() => {
+            if (formState.category === '関与先') return PAYMENT_TYPES.filter(p => p !== 'MIST');
+            return PAYMENT_TYPES;
+        }, [formState.category]);
+
+        const availableSetupOptions = useMemo(() => {
+            if (formState.category === '会計事務所') return SETUP_OPTIONS.filter(s => s !== 'あり (Q&A)');
+            if (formState.category === '関与先') return SETUP_OPTIONS.filter(s => s !== 'あり (NSG)');
+            return SETUP_OPTIONS;
+        }, [formState.category]);
+        
+        useEffect(() => { 
+            if (isOpen) {
+                const initialState = getInitialState(editingProject);
+                setFormState(initialState);
+                setStep(isEditMode ? 2 : 1);
+            }
+        }, [isOpen, editingProject]);
+        
+        useEffect(() => {
+          if (isOpen && step === 2) {
+            setTimeout(() => dateInputRef.current?.focus(), 100);
+          }
+        }, [isOpen, step]);
+        
+        useEffect(() => {
+            const updates = {};
+            if (!availableProductTypes.includes(formState.productType)) {
+                updates.productType = availableProductTypes[0];
+            }
+            if (!availablePaymentTypes.includes(formState.paymentType)) {
+                updates.paymentType = availablePaymentTypes[0];
+            }
+            if (!availableSetupOptions.includes(formState.setup)) {
+                updates.setup = availableSetupOptions[0];
+            }
+            if (Object.keys(updates).length > 0) {
+                setFormState(prev => ({ ...prev, ...updates }));
+            }
+        }, [formState.category, availableProductTypes, availablePaymentTypes, availableSetupOptions]);
+
+        const handleCategorySelect = (category) => {
+            setFormState(prev => ({...getInitialState(), category}));
+            setStep(2);
+        };
+
+        const handleChange = (e) => {
+            const { name, value, type } = e.target;
+            setFormState(prevFormState => {
+                const newFormState = { ...prevFormState, [name]: type === 'number' ? Number(value) : value };
+
+                if (name === 'productType') {
+                    if (value === 'PC' || value === 'プリンタ') {
+                        newFormState.paymentType = 'COD'; newFormState.maintenance = 'あり';
+                    } else if (value === 'スキャナ') {
+                        newFormState.paymentType = 'COD'; newFormState.setup = 'なし'; newFormState.maintenance = 'なし'; newFormState.setupAmount = 0;
+                    } else if (value === 'ルータ' && prevFormState.category === '会計事務所') {
+                        newFormState.paymentType = 'MIST'; newFormState.setup = 'あり (NSG)'; newFormState.setupAmount = 30000;
+                    }
+                } else if (name === 'setup') {
+                    if (value === 'あり (Q&A)') newFormState.setupAmount = 15000;
+                    else if (value === 'あり (NSG)') newFormState.setupAmount = 30000;
+                    else if (value === 'なし') newFormState.setupAmount = 0;
                 }
-                if (valA > valB) {
-                    return sortConfig.direction === 'ascending' ? 1 : -1;
-                }
-                return 0;
+                return newFormState;
             });
-
-            return filtered;
-
-        }, [items, filterText, filterOffice, filterSystem, filterStartDate, filterEndDate, sortConfig]);
-
-        const ResizableHeader = ({ label, columnKey, width }) => {
-          const isActive = sortConfig.key === columnKey;
-          const icon = sortConfig.direction === 'ascending' ? '▲' : '▼';
-          return (
-            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider" style={{width: `${width}px`}}>
-                <div className="flex items-center cursor-pointer" onClick={() => requestSort(columnKey)}>
-                    {label}
-                    {isActive && <span className="ml-2">{icon}</span>}
-                </div>
-              <div className="resizer" onMouseDown={(e) => handleMouseDown(e, columnKey)} />
-            </th>
-          );
         };
-        
-        const resetFilters = () => {
-          setFilterText(''); 
-          setFilterOffice(''); 
-          setFilterSystem('');
-          setFilterStartDate(''); 
-          setFilterEndDate('');
-        };
-
-        const WarningIcon = ({ title }) => (
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-yellow-500 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
-              <title>{title}</title>
-              <path fillRule="evenodd" d="M8.257 3.099c.636-1.1 2.046-1.1 2.682 0l5.98 10.356c.636 1.1-.069 2.475-1.341 2.475H3.618c-1.272 0-1.977-1.375-1.341-2.475L8.257 3.099zM10 13a1 1 0 110-2 1 1 0 010 2zm-1-4a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1z" clipRule="evenodd" />
-            </svg>
-        );
-
-        return (
-             <div className="space-y-4">
-                <div className="bg-white p-6 rounded-lg shadow-md">
-                    <button onClick={() => setFiltersVisible(!filtersVisible)} className="flex items-center justify-between w-full text-left font-semibold text-gray-700 mb-2">
-                        <span>{filtersVisible ? 'フィルターを隠す' : 'フィルターを表示'}</span>
-                        <svg className={`w-5 h-5 transform transition-transform ${filtersVisible ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
-                    </button>
-                    <div className={`filter-panel ${filtersVisible ? 'visible' : ''}`}>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-center">
-                            <input
-                                type="text"
-                                placeholder="関与先名、コードで検索..."
-                                value={filterText}
-                                onChange={(e) => setFilterText(e.target.value)}
-                                className="border rounded px-4 py-2"
-                            />
-                             <select value={filterOffice} onChange={e => setFilterOffice(e.target.value)} className="border rounded px-4 py-2">
-                                <option value="">すべての事務所</option>
-                                {offices.map(o => <option key={o.code} value={o.code}>{o.name}</option>)}
-                            </select>
-                             <select value={filterSystem} onChange={e => setFilterSystem(e.target.value)} className="border rounded px-4 py-2" disabled={viewType === 'migrations'}>
-                                <option value="">すべてのシステム</option>
-                                {systems.map(s => <option key={s} value={s}>{s}</option>)}
-                            </select>
-                            <div className="flex items-center gap-x-2 md:col-span-2">
-                                <input type="date" value={filterStartDate} onChange={e => setFilterStartDate(e.target.value)} className="border rounded px-4 py-2 w-full" />
-                                <span className="text-gray-500">～</span>
-                                <input type="date" value={filterEndDate} onChange={e => setFilterEndDate(e.target.value)} className="border rounded px-4 py-2 w-full" />
-                            </div>
-                            <button onClick={resetFilters} className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded md:col-start-3">
-                                リセット
-                            </button>
-                        </div>
-                    </div>
-                </div>
-                <div className="bg-white rounded-lg shadow-md">
-                    <div className="overflow-x-auto">
-                        <table ref={tableRef} className="w-full divide-y divide-gray-200 resizable-table" style={{tableLayout: 'fixed'}}>
-                        <thead className="bg-gray-50">
-                            {viewType === 'orders' || viewType === 'cancellations' ? (
-                                <tr>
-                                   <ResizableHeader label={viewType === 'cancellations' ? "解約日" : "受注日"} columnKey="orderDate" width={colWidths.orderDate} />
-                                   <ResizableHeader label="事務所" columnKey="officeCode" width={colWidths.officeCode} />
-                                   <ResizableHeader label={<span>分類<br/>コード</span>} columnKey="clientCode" width={colWidths.clientCode} />
-                                   <ResizableHeader label="関与先名" columnKey="clientName" width={colWidths.clientName} />
-                                   <ResizableHeader label="システム" columnKey="system" width={colWidths.system} />
-                                   {viewType === 'cancellations' && <ResizableHeader label="解約理由" columnKey="cancellationReason" width={colWidths.cancellationReason} />}
-                                   <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider sticky right-0 bg-gray-50 z-20 border-l border-gray-200" style={{width: `${colWidths.actions}px`}}>操作</th>
-                                </tr>
-                            ) : (
-                                <tr>
-                                   <ResizableHeader label="移行日" columnKey="orderDate" width={colWidths.orderDate} />
-                                   <ResizableHeader label="事務所" columnKey="officeCode" width={colWidths.officeCode} />
-                                   <ResizableHeader label={<span>分類<br/>コード</span>} columnKey="clientCode" width={colWidths.clientCode} />
-                                   <ResizableHeader label="関与先名" columnKey="clientName" width={colWidths.clientName} />
-                                   <ResizableHeader label="変更前" columnKey="beforeSystem" width={colWidths.beforeSystem} />
-                                   <ResizableHeader label="変更後" columnKey="afterSystem" width={colWidths.afterSystem} />
-                                   <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider sticky right-0 bg-gray-50 z-20 border-l border-gray-200" style={{width: `${colWidths.actions}px`}}>操作</th>
-                                </tr>
-                            )}
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                            {sortedAndFilteredItems.map(item => (
-                                <tr key={item.id} className={viewType === 'orders' && item.isTransferred ? 'bg-gray-200 text-gray-500' : ''}>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 truncate">{item.orderDate}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 truncate">{item.officeName} ({item.officeCode})</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 truncate">{item.clientCode}</td>
-                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 truncate">{item.clientName}</td>
-                                    {viewType === 'orders' || viewType === 'cancellations' ? (
-                                        <>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 truncate">{item.system}</td>
-                                            {viewType === 'cancellations' && <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 truncate" title={item.cancellationReason}>{item.cancellationReason}</td>}
-                                        </>
-                                    ) : (
-                                        <>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 truncate">
-                                                <div className="flex items-center">
-                                                    {(item.beforeSystem.includes('クラウド') || item.beforeSystem.includes('ｸﾗｳﾄﾞ')) && (
-                                                      <WarningIcon title="変更前システムに「クラウド」が含まれているため、移行対象ではない可能性があります。" />
-                                                    )}
-                                                    <span className="ml-1 truncate">{item.beforeSystem}</span>
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 truncate">{item.afterSystem}</td>
-                                        </>
-                                    )}
-                                    <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium sticky right-0 bg-white border-l border-gray-200">
-                                       {viewType === 'orders' && (
-                                            <>
-                                                <button onClick={() => {
-                                                    const message = item.isTransferred
-                                                        ? '事務所移管を取り消し、集計対象に戻しますか？'
-                                                        : '事務所移管として集計結果から除外しますか？';
-                                                    if (window.confirm(message)) {
-                                                        onToggleTransfer(item.id);
-                                                    }
-                                                }} className={`mr-2 ${item.isTransferred ? 'text-gray-500 hover:text-gray-700' : 'text-blue-600 hover:text-blue-900'}`}>{item.isTransferred ? '解除' : '移管'}</button>
-                                                <button onClick={() => {
-                                                    if(window.confirm(`「${item.clientName}」のデータを削除しますか？`)) { 
-                                                        onDeleteItem(item.id) 
-                                                    }
-                                                }} className="text-red-600 hover:text-red-900 ml-2">
-                                                    削除
-                                                </button>
-                                            </>
-                                        )}
-                                        {viewType === 'migrations' && (
-                                            <button onClick={() => {
-                                                if(window.confirm(`「${item.clientName}」のデータを削除しますか？`)) { 
-                                                    onDeleteItem(item.id) 
-                                                }
-                                            }} className="text-red-600 hover:text-red-900">
-                                                削除
-                                            </button>
-                                        )}
-                                        {viewType === 'cancellations' && (
-                                            <button onClick={() => {
-                                                if(window.confirm(`「${item.clientName}」の解約データを削除しますか？`)) { 
-                                                    onDeleteItem(item.id) 
-                                                }
-                                            }} className="text-red-600 hover:text-red-900">
-                                                削除
-                                            </button>
-                                        )}
-                                    </td>
-                                </tr>
-                            ))}
-                        </tbody>
-                        </table>
-                        {sortedAndFilteredItems.length === 0 && (
-                          <p className="text-center text-gray-500 py-8">該当するデータはありません。</p>
-                        )}
-                    </div>
-                </div>
-            </div>
-        )
-      };
-
-      const DataEntryModal = ({ selectedPeriod, onAddOrders, onAddMigrations, onAddCancellations, onClose, ordersForPeriod, migrationsForPeriod, cancellationsForPeriod }) => {
-        const [activeTab, setActiveTab] = useState('orders');
-        const [orderText, setOrderText] = useState('');
-        const [migrationText, setMigrationText] = useState('');
-        const [cancellationText, setCancellationText] = useState('');
-        const [result, setResult] = useState(null);
 
         const handleSubmit = (e) => {
             e.preventDefault();
-            let text, existingItems, onAdd, dataType;
-
-            switch(activeTab) {
-              case 'orders':
-                text = orderText;
-                existingItems = ordersForPeriod;
-                onAdd = onAddOrders;
-                dataType = 'orders';
-                break;
-              case 'migrations':
-                text = migrationText;
-                existingItems = migrationsForPeriod;
-                onAdd = onAddMigrations;
-                dataType = 'migrations';
-                break;
-              case 'cancellations':
-                text = cancellationText;
-                existingItems = cancellationsForPeriod;
-                onAdd = onAddCancellations;
-                dataType = 'cancellations';
-                break;
-              default:
-                return;
-            }
-
-            if (!text.trim()) return;
-
-            const {newItems, errors, warnings} = parsePastedData(text, selectedPeriod, existingItems, dataType);
-
-            if (newItems.length > 0) {
-                onAdd(newItems);
-            }
-            
-            setResult({ success: newItems.length, failed: errors.length, warnings: warnings.length, errors, warnings });
-            if (newItems.length > 0 && errors.length === 0) {
-                 if(activeTab === 'orders') setOrderText('');
-                 else if (activeTab === 'migrations') setMigrationText('');
-                 else if (activeTab === 'cancellations') setCancellationText('');
-            }
+            if (!formState.registrationDate || !formState.projectName || !formState.clientName) { alert('登録日、顧客名、案件名は必須です。'); return; }
+            onSaveProject(formState); 
+            onClose();
         };
 
+        if (!isOpen) return null;
+        
+        const showSetupAmount = formState.setup !== 'なし';
+
         return (
-            <div className="modal-overlay" onClick={onClose}>
-                <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex justify-between items-center mb-4">
-                        <h2 className="text-2xl font-bold text-gray-800">データ一括登録</h2>
-                        <button onClick={onClose} className="text-gray-500 hover:text-gray-800 text-3xl">&times;</button>
-                    </div>
-                     <div className="border-b border-gray-200 mb-4">
-                        <nav className="-mb-px flex space-x-6">
-                           <button onClick={() => setActiveTab('orders')} className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors border-b-2 ${activeTab === 'orders' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-600 hover:border-gray-300'}`}>受注データ</button>
-                           <button onClick={() => setActiveTab('migrations')} className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors border-b-2 ${activeTab === 'migrations' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-600 hover:border-gray-300'}`}>クラウド移行データ</button>
-                           <button onClick={() => setActiveTab('cancellations')} className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors border-b-2 ${activeTab === 'cancellations' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-600 hover:border-gray-300'}`}>解約データ</button>
-                        </nav>
-                    </div>
-
-                    <p className="text-sm text-gray-600 mb-2">ＳＦＡの売り上げ速報画面でコピーしたテキストを貼り付け</p>
-                    <p className="text-sm text-gray-600 mb-4">各データは改行して入力してください。</p>
-                    
-                    <form onSubmit={handleSubmit}>
-                        {activeTab === 'orders' && (
-                            <textarea
-                                value={orderText}
-                                onChange={(e) => setOrderText(e.target.value)}
-                                className="w-full h-48 p-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 font-mono text-sm"
-                                placeholder="受注データを貼り付け..."
-                            />
-                        )}
-                        {activeTab === 'migrations' && (
-                            <textarea
-                                value={migrationText}
-                                onChange={(e) => setMigrationText(e.target.value)}
-                                className="w-full h-48 p-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 font-mono text-sm"
-                                placeholder="クラウド移行データを貼り付け..."
-                            />
-                        )}
-                        {activeTab === 'cancellations' && (
-                          <textarea
-                              value={cancellationText}
-                              onChange={(e) => setCancellationText(e.target.value)}
-                              className="w-full h-48 p-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 font-mono text-sm"
-                              placeholder="解約データを貼り付け..."
-                          />
-                        )}
-                        <button type="submit" className="w-full mt-4 flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                            登録する
-                        </button>
-                    </form>
-
-                    {result && (
-                        <div className="mt-6 p-4 border rounded bg-gray-50">
-                            <h4 className="font-semibold text-lg mb-2">登録結果</h4>
-                            <p className="text-green-600 font-medium">{result.success}件の登録に成功しました。</p>
-                            {result.warnings > 0 && (
-                                <>
-                                    <p className="text-yellow-600 font-medium mt-2">{result.warnings}件の警告があります。</p>
-                                    <ul className="text-sm text-yellow-700 list-disc list-inside max-h-32 overflow-y-auto mt-2 space-y-1 bg-yellow-50 p-2 rounded">
-                                        {result.warnings.map((warn, i) => <li key={i}>{warn}</li>)}
-                                    </ul>
-                                </>
-                            )}
-                            {result.failed > 0 && (
-                                <>
-                                    <p className="text-red-600 font-medium mt-2">{result.failed}件の登録に失敗しました。</p>
-                                    <ul className="text-sm text-red-700 list-disc list-inside max-h-32 overflow-y-auto mt-2 space-y-1 bg-red-50 p-2 rounded">
-                                        {result.errors.map((err, i) => <li key={i}>{err}</li>)}
-                                    </ul>
-                                </>
-                            )}
+            <div className="fixed inset-0 bg-black bg-opacity-50 z-40 flex justify-center items-center p-4" onClick={onClose}>
+                {step === 1 && !isEditMode && (
+                     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md transform transition-all p-8 text-center" onClick={e => e.stopPropagation()}>
+                        <h3 className="text-xl font-bold text-slate-800 mb-2">新規案件の登録</h3>
+                        <p className="text-slate-600 mb-8">まず、顧客種別を選択してください</p>
+                        <div className="flex justify-center gap-4">
+                            <button onClick={() => handleCategorySelect(CUSTOMER_CATEGORIES[0])} className="w-40 h-16 text-lg font-semibold text-blue-600 bg-blue-50 border-2 border-blue-500 rounded-lg hover:bg-blue-100 transition-colors">{CUSTOMER_CATEGORIES[0]}</button>
+                            <button onClick={() => handleCategorySelect(CUSTOMER_CATEGORIES[1])} className="w-40 h-16 text-lg font-semibold text-blue-600 bg-blue-50 border-2 border-blue-500 rounded-lg hover:bg-blue-100 transition-colors">{CUSTOMER_CATEGORIES[1]}</button>
                         </div>
-                    )}
+                    </div>
+                )}
+                {step === 2 && (
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl transform transition-all" onClick={e => e.stopPropagation()}>
+                        <div className="p-6 border-b border-slate-200 flex justify-between items-center"><h3 className="text-xl font-bold text-slate-800">{isEditMode ? '案件の編集' : `新規案件の登録 (${formState.category})`}</h3><button onClick={onClose} className="p-1 rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors"><XIcon className="w-5 h-5" /></button></div>
+                        <form onSubmit={handleSubmit}>
+                            <div className="p-6 max-h-[70vh] overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                                <div><ModalLabel htmlFor="registrationDate">登録日 <span className="text-red-500">*</span></ModalLabel><ModalInput type="date" name="registrationDate" id="registrationDate" value={formState.registrationDate} onChange={handleChange} ref={dateInputRef} required /></div>
+                                <div><ModalLabel htmlFor="clientName">顧客名 <span className="text-red-500">*</span></ModalLabel><ModalInput type="text" name="clientName" id="clientName" value={formState.clientName} onChange={handleChange} required /></div>
+                                <div className="md:col-span-2"><ModalLabel htmlFor="projectName">案件名 <span className="text-red-500">*</span></ModalLabel><ModalInput type="text" name="projectName" id="projectName" value={formState.projectName} onChange={handleChange} required /></div>
+                                <div><ModalLabel htmlFor="mainAmount">本体金額 (税抜)</ModalLabel><ModalInput type="number" name="mainAmount" id="mainAmount" value={formState.mainAmount} onChange={handleChange} /></div>
+                                <div><ModalLabel htmlFor="division">区分</ModalLabel><ModalSelect name="division" id="division" value={formState.division} onChange={handleChange}>{DIVISIONS.map(d => <option key={d}>{d}</option>)}</ModalSelect></div>
+                                <div><ModalLabel htmlFor="productType">商品種別</ModalLabel><ModalSelect name="productType" id="productType" value={formState.productType} onChange={handleChange}>{availableProductTypes.map(p => <option key={p}>{p}</option>)}</ModalSelect></div>
+                                <div><ModalLabel htmlFor="paymentType">支払区分</ModalLabel><ModalSelect name="paymentType" id="paymentType" value={formState.paymentType} onChange={handleChange}>{availablePaymentTypes.map(p => <option key={p}>{p}</option>)}</ModalSelect></div>
+                                <div><ModalLabel htmlFor="setup">セットアップ</ModalLabel><ModalSelect name="setup" id="setup" value={formState.setup} onChange={handleChange}>{availableSetupOptions.map(s => <option key={s}>{s}</option>)}</ModalSelect></div>
+                                {showSetupAmount && <div><ModalLabel htmlFor="setupAmount">セットアップ金額 (税抜)</ModalLabel><ModalInput type="number" name="setupAmount" id="setupAmount" value={formState.setupAmount} onChange={handleChange} readOnly={formState.setup !== 'あり (SCG)'} /></div>}
+                                <div><ModalLabel htmlFor="maintenance">保守契約</ModalLabel><ModalSelect name="maintenance" id="maintenance" value={formState.maintenance} onChange={handleChange}>{MAINTENANCE_OPTIONS.map(m => <option key={m}>{m}</option>)}</ModalSelect></div>
+                                <div className="md:col-span-2"><ModalLabel htmlFor="memo">メモ</ModalLabel><ModalTextarea name="memo" id="memo" value={formState.memo} onChange={handleChange} /></div>
+                            </div>
+                            <div className="p-6 bg-slate-50 border-t border-slate-200 rounded-b-2xl flex justify-end items-center space-x-3"><button type="button" onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 transition">キャンセル</button><button type="submit" className="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-lg hover:bg-blue-700 transition">{isEditMode ? '更新する' : '登録する'}</button></div>
+                        </form>
+                    </div>
+                )}
+            </div>
+        );
+      };
+
+      const DetailItem = ({ label, value, className = "" }) => (<div className={`flex flex-col ${className}`}><dt className="text-xs text-slate-500">{label}</dt><dd className="text-sm text-slate-900 mt-1 break-words">{value || 'ー'}</dd></div>);
+
+      const ProjectDetailModal = ({ isOpen, project, onClose, onEdit, onDelete, onCarryOver, onSetLost, onUndoLost }) => {
+        if (!isOpen || !project) return null;
+
+        const setupAmount = project.setupAmount || 0;
+        const totalAmount = project.mainAmount + setupAmount;
+
+        return (
+            <div className="fixed inset-0 bg-black bg-opacity-50 z-40 flex justify-center items-center p-4" onClick={onClose}>
+                <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl transform transition-all" onClick={e => e.stopPropagation()}>
+                    <div className="p-6 border-b border-slate-200 flex justify-between items-center">
+                        <h3 className="text-xl font-bold text-slate-800">案件詳細</h3>
+                        <button onClick={onClose} className="p-1 rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors"><XIcon className="w-5 h-5" /></button>
+                    </div>
+                    <div className="p-6 max-h-[70vh] overflow-y-auto">
+                        <div className="mb-6 pb-6 border-b border-slate-200">
+                             <p className="text-xs text-slate-500">顧客名</p>
+                             <h4 className="text-2xl font-bold text-slate-900">{project.clientName}</h4>
+                             <p className="text-xs text-slate-500 mt-4">案件名</p>
+                             <p className="text-lg text-slate-700 mt-1">{project.projectName}</p>
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-y-6 gap-x-4">
+                            <DetailItem label="顧客種別" value={project.category} />
+                            <DetailItem label="区分" value={project.division} />
+                            <DetailItem label="商品種別" value={project.productType} />
+                            <DetailItem label="支払区分" value={project.paymentType} />
+                            <DetailItem label="セットアップ" value={project.setup} />
+                            <DetailItem label="保守契約" value={project.maintenance} />
+                            <DetailItem label="登録日" value={new Date(project.registrationDate).toLocaleDateString('ja-JP')} />
+                            <div className="flex flex-col">
+                               <dt className="text-xs text-slate-500">金額内訳</dt>
+                               <dd className="text-sm text-slate-900 mt-1">
+                                    <div>本体: {project.mainAmount.toLocaleString()}円</div>
+                                    <div>セットアップ: {setupAmount.toLocaleString()}円</div>
+                                    <div className="font-bold border-t border-slate-200 mt-1 pt-1">合計: {totalAmount.toLocaleString()}円</div>
+                               </dd>
+                            </div>
+                            <DetailItem label="メモ" value={project.memo} className="col-span-2 md:col-span-3" />
+                        </div>
+                    </div>
+                     <div className="p-6 bg-slate-50 border-t border-slate-200 rounded-b-2xl flex items-center gap-4 text-slate-600">
+                        <button onClick={() => { onEdit(project); onClose(); }} className="flex items-center gap-2 hover:text-blue-600"><EditIcon className="w-5 h-5" /><span>編集</span></button>
+                        {project.isLost ? (
+                            <button onClick={() => onUndoLost(project.id)} className="flex items-center gap-2 hover:text-green-600"><RefreshIcon className="w-5 h-5" /><span>失注を取り消す</span></button>
+                        ) : (
+                            <button onClick={() => onSetLost(project.id)} className="flex items-center gap-2 hover:text-orange-600"><NoSymbolIcon className="w-5 h-5" /><span>失注</span></button>
+                        )}
+                        <button onClick={() => onDelete(project.id)} className="flex items-center gap-2 hover:text-red-600"><TrashIcon className="w-5 h-5" /><span>削除</span></button>
+                        <button onClick={() => onCarryOver(project)} className="flex items-center gap-2 hover:text-green-600"><ArrowCircleRightIcon className="w-5 h-5" /><span>繰り越し</span></button>
+                        <div className="flex-grow"></div>
+                        <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 transition">閉じる</button>
+                    </div>
                 </div>
             </div>
         );
       };
 
-      const CorrectionModal = ({ issue, onCorrect, onClose }) => {
-        if (!issue) return null;
+      const TaskStatus = ({ status, onClick, disabled }) => {
+          const baseClasses = "w-6 h-6 rounded-full flex items-center justify-center transition-all duration-300 ease-in-out";
+          const interactiveClasses = disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer transform hover:scale-110 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-400';
 
-        const { type, data, title, description, correctionLabel } = issue;
-        
-        let itemsToDisplay = [];
-        const groupedDuplicateTypes = ['orderDuplicates', 'migrationDuplicates', 'cancellationDuplicates'];
-        
-        if (groupedDuplicateTypes.includes(type)) {
-            itemsToDisplay = data.flatMap(group => group.items);
-        } else {
-            itemsToDisplay = data;
-        }
-
-        return (
-            <div className="modal-overlay" onClick={onClose}>
-                <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex justify-between items-start mb-4">
-                        <div>
-                           <h2 className="text-2xl font-bold text-red-600">{title}</h2>
-                           <p className="text-gray-600 mt-1">{description}</p>
-                        </div>
-                        <button onClick={onClose} className="text-gray-500 hover:text-gray-800 text-3xl">&times;</button>
-                    </div>
-                    
-                    <div className="max-h-80 overflow-y-auto border rounded p-4 bg-gray-50 mb-6">
-                        <h3 className="font-semibold mb-2">対象データ ({itemsToDisplay.length}件)</h3>
-                        <ul className="divide-y divide-gray-200">
-                            {itemsToDisplay.map(item => (
-                                <li key={item.id} className="py-2 text-sm">
-                                    <span className="font-medium">{item.clientName}</span> ({item.orderDate})
-                                    <span className="text-gray-500 ml-2">
-                                        {item.system ? item.system : `${item.beforeSystem} → ${item.afterSystem}`}
-                                    </span>
-                                </li>
-                            ))}
-                        </ul>
-                    </div>
-
-                    <div className="flex justify-end space-x-4">
-                        <button onClick={onClose} className="px-6 py-2 rounded-md text-gray-700 bg-gray-200 hover:bg-gray-300">
-                            キャンセル
-                        </button>
-                        <button onClick={() => { if(window.confirm(`${correctionLabel}を実行します。この操作は元に戻せません。よろしいですか？`)) onCorrect(type); }} className="px-6 py-2 rounded-md text-white bg-red-600 hover:bg-red-700">
-                            {correctionLabel}
-                        </button>
-                    </div>
-                </div>
-            </div>
-        );
+          switch (status) {
+              case 'completed':
+                  return (
+                      <button onClick={onClick} disabled={disabled} title="完了" className={`${baseClasses} ${interactiveClasses} bg-blue-500 shadow`}>
+                          <CheckIcon className="w-4 h-4 text-white" />
+                      </button>
+                  );
+              case 'next':
+                  return (
+                      <button onClick={onClick} disabled={disabled} title="次のタスク" className={`${baseClasses} ${interactiveClasses} bg-white border-2 border-blue-500 shadow`}>
+                           <div className="w-2.5 h-2.5 bg-blue-500 rounded-full animate-pulse"></div>
+                      </button>
+                  );
+              case 'pending':
+                  return (
+                      <button onClick={onClick} disabled={disabled} title="未完了" className={`${baseClasses} ${interactiveClasses} bg-slate-200 hover:bg-slate-300`}></button>
+                  );
+              case 'skipped':
+                   return (
+                      <div title="対象外" className={`${baseClasses} bg-slate-100`}>
+                          <div className="w-4 h-0.5 bg-slate-400"></div>
+                      </div>
+                  );
+              default:
+                  return <div className={baseClasses}></div>;
+          }
       };
       
-      const InfoModal = ({ title, onClose, children }) => (
-        <div className="modal-overlay" onClick={onClose}>
-            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-                <div className="flex justify-between items-center mb-4 border-b pb-3">
-                    <h2 className="text-2xl font-bold text-gray-800">{title}</h2>
-                    <button onClick={onClose} className="text-gray-500 hover:text-gray-800 text-3xl">&times;</button>
-                </div>
-                <div className="prose max-w-none text-gray-700 max-h-[70vh] overflow-y-auto pr-4">
-                    {children}
-                </div>
-                 <div className="flex justify-end mt-6 border-t pt-4">
-                    <button onClick={onClose} className="px-6 py-2 rounded-md text-white bg-indigo-600 hover:bg-indigo-700">
-                        閉じる
-                    </button>
-                </div>
-            </div>
-        </div>
-      );
+      const HankoStamp = ({ status }) => {
+        if (!status) return <div className="w-10 h-10 flex-shrink-0"></div>;
 
-      const RevisionHistoryModal = ({ version, onClose }) => (
-        <div className="modal-overlay">
-            <div className="modal-content" style={{maxWidth: '768px'}}>
-                <div className="flex justify-between items-center mb-4 border-b pb-3">
-                    <h2 className="text-2xl font-bold text-gray-800">アプリケーションの更新情報 ({version})</h2>
-                </div>
-                <div className="prose max-w-none text-gray-700 max-h-[60vh] overflow-y-auto pr-4">
-                    <h3>クラウド移行分析の強化</h3>
-                    <ul>
-                        <li><strong>トレンドグラフの改善:</strong> クラウド移行のトレンドグラフが、<strong>期首の累計件数</strong>を開始点とし、期間中の移行・新規受注（クラウド）・解約を反映して実績値を描画するようになりました。目標線も期首累計から期末目標に向かって引かれるため、進捗がより正確に把握できます。</li>
-                        <li><strong>サマリー表示の刷新:</strong> 「当期クラウド純増数」のサマリー表示に<strong>「現在累計」</strong>を追加し、計算の内訳と結果が一目でわかるように改善しました。レイアウトも調整し、1行に収まるようにしています。</li>
-                    </ul>
-                    <h3>新規分析グラフの追加</h3>
-                    <ul>
-                        <li><strong>月内処理日分析:</strong> 「新規自計化」「クラウド移行」「解約」のすべての分析タブに、新しいグラフを追加しました。</li>
-                        <li>このグラフでは、登録された日付をもとに、月の日ごとの件数や、月初・月中・月末ごとの件数分布を確認できます。これにより、業務の繁閑時期の分析が可能になります。</li>
-                    </ul>
-                    <h3>その他</h3>
-                    <ul>
-                        <li>使い方ガイドの内容を最新の機能に合わせて更新しました。</li>
-                    </ul>
-                </div>
-                <div className="flex justify-end mt-6 border-t pt-4">
-                    <button onClick={onClose} className="px-6 py-2 rounded-md text-white bg-indigo-600 hover:bg-indigo-700">
-                        読了して閉じる
-                    </button>
-                </div>
-            </div>
-        </div>
-      );
-
-      const AnalysisView = ({ items, period, target, viewType, allCloudOrdersForPeriod, registeredCloudCancellations, initialCount, allOrders, allMigrations, allCancellations }) => {
-        const [systemChartType, setSystemChartType] = useState('pie');
-        const [trendChartType, setTrendChartType] = useState('line');
-        
-        const [selectedOffices, setSelectedOffices] = useState(new Set());
-        const [officeFilterOpen, setOfficeFilterOpen] = useState(false);
-        const officeFilterRef = useRef(null);
-
-        const [selectedSystems, setSelectedSystems] = useState(new Set());
-        const [systemFilterOpen, setSystemFilterOpen] = useState(false);
-        const systemFilterRef = useRef(null);
-
-        const COLORS = ['#4f46e5', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#3b82f6', '#ec4899'];
-
-        useEffect(() => {
-            const handleClickOutside = (event) => {
-                if (officeFilterRef.current && !officeFilterRef.current.contains(event.target)) {
-                    setOfficeFilterOpen(false);
-                }
-                if (systemFilterRef.current && !systemFilterRef.current.contains(event.target)) {
-                    setSystemFilterOpen(false);
-                }
-            };
-            document.addEventListener("mousedown", handleClickOutside);
-            return () => document.removeEventListener("mousedown", handleClickOutside);
-        }, [officeFilterRef, systemFilterRef]);
-        
-        const allOfficeNames = useMemo(() => {
-            if (!items || items.length === 0) return [];
-            const names = new Set();
-            items.forEach(item => item.officeName && names.add(item.officeName));
-            return Array.from(names).sort();
-        }, [items]);
-
-        const handleOfficeSelect = (officeName) => {
-            setSelectedOffices(prev => {
-                const newSet = new Set(prev);
-                if (newSet.has(officeName)) {
-                    newSet.delete(officeName);
-                } else {
-                    newSet.add(officeName);
-                }
-                return newSet;
-            });
+        const styles = {
+            '受注': 'text-red-600 border-red-600',
+            '完了': 'text-blue-600 border-blue-600',
+            '失注': 'text-slate-500 border-slate-500',
         };
-        
-        const allSystemNames = useMemo(() => {
-             if (!items || items.length === 0) return [];
-            const names = new Set();
-            items.forEach(item => {
-                let systemName = 'N/A';
-                if (viewType === 'migrations') {
-                    systemName = item.afterSystem || '不明';
-                } else if(item.system) {
-                    systemName = item.system;
-                }
-                if (systemName) names.add(systemName);
-            });
-            return Array.from(names).sort();
-        }, [items, viewType]);
-        
-        const handleSystemSelect = (systemName) => {
-            setSelectedSystems(prev => {
-                const newSet = new Set(prev);
-                if (newSet.has(systemName)) {
-                    newSet.delete(systemName);
-                } else {
-                    newSet.add(systemName);
-                }
-                return newSet;
-            });
-        };
-
-        const officeData = useMemo(() => {
-            if (!items || items.length === 0) return [];
-            const counts = items.reduce((acc, item) => {
-                const officeName = item.officeName || '不明';
-                acc[officeName] = (acc[officeName] || 0) + 1;
-                return acc;
-            }, {});
-
-            let data = Object.entries(counts)
-                .map(([name, value]) => ({ name, value }))
-                .sort((a, b) => b.value - a.value);
-
-            const colorMap = {};
-            let colorIndex = 0;
-            const uniqueValues = [...new Set(data.map(d => d.value))].sort((a, b) => b - a);
-            uniqueValues.forEach(value => {
-                colorMap[value] = COLORS[colorIndex % COLORS.length];
-                colorIndex++;
-            });
-
-            data = data.map(d => ({ ...d, fill: colorMap[d.value] }));
-
-            if (selectedOffices.size > 0) {
-                data = data.filter(d => selectedOffices.has(d.name));
-            }
-
-            return data;
-        }, [items, selectedOffices]);
-
-        const systemData = useMemo(() => {
-            if (!items || items.length === 0) return [];
-            const counts = items.reduce((acc, item) => {
-                let systemName = 'N/A';
-                if (viewType === 'migrations') {
-                    systemName = item.afterSystem || '不明';
-                } else if(item.system) {
-                    systemName = item.system;
-                }
-                acc[systemName] = (acc[systemName] || 0) + 1;
-                return acc;
-            }, {});
-            
-            let data = Object.entries(counts)
-                .map(([name, value]) => ({ name, value }))
-                .sort((a, b) => b.value - a.value);
-
-            if (selectedSystems.size > 0) {
-                data = data.filter(d => selectedSystems.has(d.name));
-            }
-
-            return data;
-        }, [items, viewType, selectedSystems]);
-
-        const lineTrendData = useMemo(() => {
-            if (!items || !period.startDate || !period.endDate || target <= 0) return { data: [], ticks: [], gridTicks: [] };
-
-            const start = new Date(period.startDate);
-            start.setHours(0, 0, 0, 0);
-            const end = new Date(period.endDate);
-            end.setHours(0, 0, 0, 0);
-            const now = new Date();
-            now.setHours(0, 0, 0, 0);
-
-            const data = [];
-            const totalDays = Math.max(1, (end.getTime() - start.getTime()) / (1000 * 3600 * 24)) + 1;
-            
-            const sortedItems = [...items].sort((a, b) => new Date(a.orderDate) - new Date(b.orderDate));
-            let itemIndex = 0;
-            let cumulativeCount = 0;
-
-            for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-                const currentDate = new Date(d);
-                while (itemIndex < sortedItems.length && new Date(sortedItems[itemIndex].orderDate) <= currentDate) {
-                    cumulativeCount++;
-                    itemIndex++;
-                }
-                const daysIntoPeriod = Math.max(0, (currentDate.getTime() - start.getTime()) / (1000 * 3600 * 24));
-                const targetProgress = target > 0 ? (daysIntoPeriod / (totalDays - 1)) * target : 0;
-
-                data.push({
-                    date: currentDate.getTime(),
-                    dateLabel: `${currentDate.getFullYear()}/${String(currentDate.getMonth() + 1).padStart(2, '0')}/${String(currentDate.getDate()).padStart(2, '0')}`,
-                    累計実績: currentDate <= now ? cumulativeCount : null,
-                    目標: targetProgress,
-                });
-            }
-            
-            const ticks = [];
-            const gridTicks = [];
-            let iter = new Date(start.getFullYear(), start.getMonth(), 1);
-            if (iter < start) {
-                iter.setMonth(iter.getMonth() + 1);
-            }
-
-            while (iter <= end) {
-                gridTicks.push(iter.getTime());
-                const midMonth = new Date(iter.getFullYear(), iter.getMonth(), 15);
-                if (midMonth >= start && midMonth <= end) {
-                    ticks.push(midMonth.getTime());
-                }
-                iter.setMonth(iter.getMonth() + 1);
-            }
-            if (ticks.length === 0 && gridTicks.length > 0) {
-                 ticks.push(start.getTime() + (end.getTime() - start.getTime()) / 2);
-            }
-
-            return { data, ticks, gridTicks };
-        }, [items, period, target]);
-
-        const cloudMigrationTrendData = useMemo(() => {
-            if (!period.startDate || !period.endDate || target <= 0) return { data: [], ticks: [], gridTicks: [] };
-
-            const start = new Date(period.startDate);
-            start.setHours(0, 0, 0, 0);
-            const end = new Date(period.endDate);
-            end.setHours(0, 0, 0, 0);
-            const now = new Date();
-            now.setHours(0, 0, 0, 0);
-
-            const events = [
-                ...items.map(i => ({ date: new Date(i.orderDate), value: 1 })), // migrations
-                ...(allCloudOrdersForPeriod || []).map(i => ({ date: new Date(i.orderDate), value: 1 })), // new cloud orders
-                ...(registeredCloudCancellations || []).map(i => ({ date: new Date(i.orderDate), value: -1 })), // cloud cancellations
-            ];
-            events.sort((a, b) => a.date - b.date);
-
-            const data = [];
-            const totalDays = Math.max(1, (end.getTime() - start.getTime()) / (1000 * 3600 * 24)) + 1;
-            
-            let eventIndex = 0;
-            let cumulativeCount = initialCount;
-
-            for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-                const currentDate = new Date(d);
-                while (eventIndex < events.length && events[eventIndex].date <= currentDate) {
-                    cumulativeCount += events[eventIndex].value;
-                    eventIndex++;
-                }
-                
-                const daysIntoPeriod = Math.max(0, (currentDate.getTime() - start.getTime()) / (1000 * 3600 * 24));
-                const targetProgress = initialCount + (target - initialCount) * (daysIntoPeriod / (totalDays - 1));
-
-                data.push({
-                    date: currentDate.getTime(),
-                    dateLabel: `${currentDate.getFullYear()}/${String(currentDate.getMonth() + 1).padStart(2, '0')}/${String(currentDate.getDate()).padStart(2, '0')}`,
-                    累計実績: currentDate <= now ? cumulativeCount : null,
-                    目標: targetProgress,
-                });
-            }
-            
-            const ticks = [];
-            const gridTicks = [];
-            let iter = new Date(start.getFullYear(), start.getMonth(), 1);
-            if (iter < start) {
-                iter.setMonth(iter.getMonth() + 1);
-            }
-
-            while (iter <= end) {
-                gridTicks.push(iter.getTime());
-                const midMonth = new Date(iter.getFullYear(), iter.getMonth(), 15);
-                if (midMonth >= start && midMonth <= end) {
-                    ticks.push(midMonth.getTime());
-                }
-                iter.setMonth(iter.getMonth() + 1);
-            }
-            if (ticks.length === 0 && gridTicks.length > 0) {
-                 ticks.push(start.getTime() + (end.getTime() - start.getTime()) / 2);
-            }
-
-            return { data, ticks, gridTicks };
-        }, [items, allCloudOrdersForPeriod, registeredCloudCancellations, initialCount, period, target]);
-
-        const { barTrendData, monthlyTarget } = useMemo(() => {
-            if (!items || !period.startDate || !period.endDate || target <= 0) return { barTrendData: [], monthlyTarget: 0 };
-            
-            const start = new Date(period.startDate);
-            const end = new Date(period.endDate);
-            
-            const months = [];
-            let current = new Date(start.getFullYear(), start.getMonth(), 1);
-            while (current <= end) {
-                months.push({ year: current.getFullYear(), month: current.getMonth() });
-                current.setMonth(current.getMonth() + 1);
-            }
-            
-            const combinedItems = (viewType === 'migrations' && allCloudOrdersForPeriod)
-                ? [...items, ...allCloudOrdersForPeriod]
-                : items;
-
-            const monthlyCounts = combinedItems.reduce((acc, item) => {
-                const date = new Date(item.orderDate);
-                const key = `${date.getFullYear()}-${date.getMonth()}`;
-                acc[key] = (acc[key] || 0) + 1;
-                return acc;
-            }, {});
-
-            const numberOfMonths = months.length > 0 ? months.length : 1;
-            let calculatedMonthlyTarget = 0;
-
-            if (viewType === 'migrations') {
-                const targetNetIncrease = target - initialCount;
-                calculatedMonthlyTarget = targetNetIncrease > 0 ? Math.round(targetNetIncrease / numberOfMonths) : 0;
-            } else { // for orders view
-                calculatedMonthlyTarget = Math.round(target / numberOfMonths);
-            }
-
-            const data = months.map(({ year, month }) => {
-                const key = `${year}-${month}`;
-                const monthlyCount = monthlyCounts[key] || 0;
-                const isAchieved = monthlyCount >= calculatedMonthlyTarget && calculatedMonthlyTarget > 0;
-                
-                return {
-                    month: `${year}/${String(month + 1).padStart(2, '0')}`,
-                    目標: calculatedMonthlyTarget,
-                    達成: isAchieved ? monthlyCount : null,
-                    未達成: !isAchieved ? monthlyCount : null,
-                };
-            });
-            return { barTrendData: data, monthlyTarget: calculatedMonthlyTarget };
-        }, [items, period, target, viewType, allCloudOrdersForPeriod, initialCount]);
-
-        const cancellationReasonData = useMemo(() => {
-            if (viewType !== 'cancellations' || !items || items.length === 0) return [];
-            const totalCancellations = items.length;
-            const counts = items.reduce((acc, item) => {
-                const reason = item.cancellationReason?.trim() || '理由未記入';
-                acc[reason] = (acc[reason] || 0) + 1;
-                return acc;
-            }, {});
-            return Object.entries(counts)
-                .map(([reason, count]) => ({
-                    reason,
-                    count,
-                    percentage: (count / totalCancellations) * 100,
-                }))
-                .sort((a, b) => b.count - a.count);
-        }, [items, viewType]);
-
-        const dayOfMonthAnalysis = useMemo(() => {
-            const currentPeriodItems = viewType === 'migrations' 
-                ? [...items, ...allCloudOrdersForPeriod, ...registeredCloudCancellations]
-                : items;
-            
-            const dailyCounts = Array(31).fill(0);
-            const periodCounts = { '月初 (1-10日)': 0, '月中 (11-20日)': 0, '月末 (21-31日)': 0 };
-
-            if (currentPeriodItems && currentPeriodItems.length > 0) {
-                currentPeriodItems.forEach(item => {
-                    const day = new Date(item.orderDate).getDate();
-                    if (day >= 1 && day <= 31) {
-                        dailyCounts[day - 1]++;
-                        if (day <= 10) periodCounts['月初 (1-10日)']++;
-                        else if (day <= 20) periodCounts['月中 (11-20日)']++;
-                        else periodCounts['月末 (21-31日)']++;
-                    }
-                });
-            }
-            
-            const dailyData = dailyCounts.map((count, index) => ({ day: String(index + 1), 件数: count }));
-
-            let periodComparisonData = [
-                { name: '月初 (1-10日)', '当期': periodCounts['月初 (1-10日)'] },
-                { name: '月中 (11-20日)', '当期': periodCounts['月中 (11-20日)'] },
-                { name: '月末 (21-31日)', '当期': periodCounts['月末 (21-31日)'] }
-            ];
-            let legendData = { latest: '当期' };
-
-            let allDataSource = [];
-             if (viewType === 'migrations') {
-                const cloudOrders = (allOrders || []).filter(o => o.system.includes('クラウド') || o.system.includes('ｸﾗｳﾄﾞ'));
-                const cloudCancellations = (allCancellations || []).filter(c => c.system.includes('クラウド') || c.system.includes('ｸﾗｳﾄﾞ'));
-                allDataSource = [...(allMigrations || []), ...cloudOrders, ...cloudCancellations];
-            } else if (viewType === 'orders') {
-                allDataSource = allOrders || [];
-            } else { // cancellations
-                allDataSource = allCancellations || [];
-            }
-
-            if (allDataSource.length > 0) {
-                const latestDate = new Date(Math.max.apply(null, currentPeriodItems.map(e => new Date(e.orderDate))));
-                const latestYear = latestDate.getFullYear();
-                const latestMonth = latestDate.getMonth();
-
-                const prevMonthDate = new Date(latestYear, latestMonth - 1, 1);
-                const prevMonthYear = prevMonthDate.getFullYear();
-                const prevMonth = prevMonthDate.getMonth();
-                
-                const getPeriodCountsForMonth = (year, month) => {
-                    const counts = { '月初 (1-10日)': 0, '月中 (11-20日)': 0, '月末 (21-31日)': 0 };
-                    allDataSource.forEach(item => {
-                        const date = new Date(item.orderDate);
-                        if (date.getFullYear() === year && date.getMonth() === month) {
-                            const day = date.getDate();
-                            if (day <= 10) counts['月初 (1-10日)']++;
-                            else if (day <= 20) counts['月中 (11-20日)']++;
-                            else counts['月末 (21-31日)']++;
-                        }
-                    });
-                    return counts;
-                };
-
-                const latestMonthCounts = getPeriodCountsForMonth(latestYear, latestMonth);
-                const prevMonthCounts = getPeriodCountsForMonth(prevMonthYear, prevMonth);
-                const prevYearCounts = getPeriodCountsForMonth(latestYear - 1, latestMonth);
-
-                const latestMonthStr = `${latestYear}/${String(latestMonth + 1).padStart(2, '0')}`;
-                const prevMonthStr = `${prevMonthYear}/${String(prevMonth + 1).padStart(2, '0')}`;
-                const prevYearStr = `${latestYear - 1}/${String(latestMonth + 1).padStart(2, '0')}`;
-
-                periodComparisonData = [
-                    { name: '月初 (1-10日)', [latestMonthStr]: latestMonthCounts['月初 (1-10日)'], [prevMonthStr]: prevMonthCounts['月初 (1-10日)'], [prevYearStr]: prevYearCounts['月初 (1-10日)'] },
-                    { name: '月中 (11-20日)', [latestMonthStr]: latestMonthCounts['月中 (11-20日)'], [prevMonthStr]: prevMonthCounts['月中 (11-20日)'], [prevYearStr]: prevYearCounts['月中 (11-20日)'] },
-                    { name: '月末 (21-31日)', [latestMonthStr]: latestMonthCounts['月末 (21-31日)'], [prevMonthStr]: prevMonthCounts['月末 (21-31日)'], [prevYearStr]: prevYearCounts['月末 (21-31日)'] }
-                ];
-                legendData = { latest: latestMonthStr, prev: prevMonthStr, prevYear: prevYearStr };
-            }
-
-            return { dailyData, periodComparisonData, legendData };
-        }, [items, viewType, allCloudOrdersForPeriod, registeredCloudCancellations, allOrders, allMigrations, allCancellations]);
-
-        const ChartToggleButton = ({ options, selected, onChange }) => (
-            <div className="flex space-x-1 bg-gray-200 p-1 rounded-md">
-                {options.map(option => (
-                    <button
-                        key={option.value}
-                        onClick={() => onChange(option.value)}
-                        className={`px-3 py-1 text-sm rounded transition-colors ${selected === option.value ? 'bg-white text-indigo-600 shadow' : 'text-gray-600 hover:bg-gray-100'}`}
-                    >
-                        {option.label}
-                    </button>
-                ))}
-            </div>
-        );
-        
-        const EmptyChart = ({message = "表示するデータがありません。"}) => (
-            <div className="flex items-center justify-center h-full text-gray-500">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 mr-2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}><path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
-                {message}
-            </div>
-        );
-
-        const BarTrendTooltip = ({ active, payload, label }) => {
-            if (active && payload && payload.length) {
-                const total = payload.reduce((sum, entry) => sum + (entry.dataKey === '達成' || entry.dataKey === '未達成' ? entry.value : 0), 0);
-                const targetVal = payload.find(p => p.dataKey === '目標')?.value;
-
-                return (
-                    <div className="bg-white p-2 border border-gray-300 rounded shadow-sm text-sm">
-                        <p className="font-bold">{label}</p>
-                        <p style={{ color: total >= targetVal && targetVal > 0 ? '#10b981' : '#4f46e5' }}>実績: {total}</p>
-                        <p style={{ color: '#f59e0b' }}>目標: {targetVal}</p>
-                    </div>
-                );
-            }
-            return null;
-        };
-        
-        const trendDataToUse = viewType === 'migrations' ? cloudMigrationTrendData : lineTrendData;
         
         return (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Office Analysis */}
-                <div className="bg-white p-6 rounded-lg shadow-md lg:col-span-1">
-                    <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-lg font-semibold text-gray-800">事務所別 件数</h3>
-                         <div className="relative" ref={officeFilterRef}>
-                            <button 
-                                onClick={() => setOfficeFilterOpen(!officeFilterOpen)} 
-                                className="border rounded px-3 py-1 text-sm bg-white hover:bg-gray-50 flex items-center"
-                            >
-                                <span>{selectedOffices.size > 0 ? `${selectedOffices.size}件 選択` : '事務所を選択'}</span>
-                                <svg className="w-4 h-4 ml-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
-                            </button>
-                            {officeFilterOpen && (
-                                <div className="absolute z-20 right-0 mt-2 w-64 bg-white border border-gray-200 rounded-md shadow-lg max-h-80 overflow-y-auto">
-                                    <div className="p-2 border-b">
-                                        <button onClick={() => setSelectedOffices(new Set())} className="text-xs text-blue-600 hover:underline">すべてクリア</button>
-                                    </div>
-                                    {allOfficeNames.map(name => (
-                                        <label key={name} className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">
-                                            <input 
-                                                type="checkbox" 
-                                                className="form-checkbox h-4 w-4 text-indigo-600 border-gray-300 rounded"
-                                                checked={selectedOffices.has(name)} 
-                                                onChange={() => handleOfficeSelect(name)} 
-                                            />
-                                            <span className="ml-3 truncate">{name}</span>
-                                        </label>
-                                    ))}
-                                </div>
+            <div className={`flex-shrink-0 flex items-center justify-center w-10 h-10 border-2 rounded-full font-serif font-bold text-sm transform -rotate-12 ${styles[status]}`}>
+                {status}
+            </div>
+        );
+      };
+
+      const ProjectCard = ({ project, onViewDetails, onTaskToggle }) => {
+          const totalAmount = project.mainAmount + (project.setupAmount || 0);
+          
+          const visibleTasks = useMemo(() => getVisibleTasks(project), [project]);
+          const completedVisibleTasks = visibleTasks.filter(task => project.tasks[task]);
+          
+          const isLost = project.isLost;
+          const isCompleted = !isLost && completedVisibleTasks.length === visibleTasks.length;
+          const isOrdered = !isLost && !isCompleted && project.tasks['本社発注'];
+          const nextVisibleTask = !isLost && !isCompleted ? visibleTasks.find(task => !project.tasks[task]) : null;
+
+          let status = null;
+          if (isLost) status = '失注';
+          else if (isCompleted) status = '完了';
+          else if (isOrdered) status = '受注';
+          
+          const lastVisibleTaskIndex = TASKS.indexOf(visibleTasks[visibleTasks.length - 1]);
+
+          return (
+            <div className={`grid grid-cols-[minmax(0,_3.5fr)_minmax(0,_1fr)_minmax(0,_1.2fr)_repeat(10,minmax(36px,_1fr))_minmax(0,_1fr)] items-center text-sm hover:bg-slate-50 transition-colors duration-200 ${project.isLost ? 'opacity-60 grayscale' : ''}`}>
+                <div className="p-2 pl-4 flex items-center gap-3 min-w-0">
+                    <HankoStamp status={status} />
+                    <div className="flex-grow min-w-0">
+                        <h3 className="font-bold text-slate-900 truncate text-base">{project.clientName}</h3>
+                        <p className="text-slate-500 text-xs mt-1 truncate">{project.projectName}</p>
+                        {nextVisibleTask && (
+                            <p className="text-orange-600 font-semibold text-xs mt-1">{nextVisibleTask}未了</p>
+                        )}
+                    </div>
+                </div>
+
+                <div className="p-2 text-slate-600 text-center">{new Date(project.registrationDate).toLocaleDateString('ja-JP')}</div>
+                <div className="p-2 font-semibold text-slate-800 text-right">{totalAmount.toLocaleString()}円</div>
+
+                {TASKS.map((task, index) => {
+                    const isVisible = visibleTasks.includes(task);
+                    const isCompleted = project.tasks[task];
+                    const isNext = task === nextVisibleTask;
+                    
+                    const prevTaskName = index > 0 ? TASKS[index - 1] : null;
+                    const isPrevTaskVisible = prevTaskName && visibleTasks.includes(prevTaskName);
+                    const isPrevTaskCompleted = prevTaskName && project.tasks[prevTaskName];
+
+                    const isLineBlue = isVisible && isPrevTaskVisible && isCompleted && isPrevTaskCompleted;
+                    const showLine = index > 0 && index <= lastVisibleTaskIndex && isVisible;
+
+                    let taskStatus = 'pending';
+                    if (!isVisible) taskStatus = 'skipped';
+                    else if (isCompleted) taskStatus = 'completed';
+                    else if (isNext) taskStatus = 'next';
+                    
+                    const isDisabled = project.isLost || (taskStatus === 'pending');
+
+                    return (
+                        <div key={task} className="flex justify-center items-center relative h-full">
+                            {showLine && (
+                                <div className={`absolute top-1/2 -translate-y-1/2 left-0 w-full h-0.5 ${isLineBlue ? 'bg-blue-500' : 'bg-slate-200'}`}></div>
                             )}
-                        </div>
-                    </div>
-                     <div className="w-full h-96">
-                        {officeData.length > 0 ? (
-                             <ResponsiveContainer>
-                                <BarChart data={officeData} layout="vertical" margin={{ top: 5, right: 20, left: 100, bottom: 5 }}>
-                                    <CartesianGrid strokeDasharray="3 3" />
-                                    <XAxis type="number" allowDecimals={false} domain={[0, 'dataMax']} />
-                                    <YAxis type="category" dataKey="name" width={100} tick={{ fontSize: 12 }} />
-                                    <Tooltip formatter={(value) => [`${value}件`, '件数']} />
-                                    <Bar dataKey="value">
-                                       {officeData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.fill} />)}
-                                    </Bar>
-                                </BarChart>
-                            </ResponsiveContainer>
-                        ) : <EmptyChart message={selectedOffices.size > 0 ? "フィルターに一致するデータがありません。" : "表示するデータがありません。"} />}
-                    </div>
-                </div>
-
-                {/* System Analysis */}
-                <div className="bg-white p-6 rounded-lg shadow-md lg:col-span-1">
-                    <div className="flex justify-between items-center mb-4">
-                        <h3 className="text-lg font-semibold text-gray-800">システム別 件数</h3>
-                         <div className="flex items-center gap-x-2">
-                             <div className="relative" ref={systemFilterRef}>
-                                <button 
-                                    onClick={() => setSystemFilterOpen(!systemFilterOpen)} 
-                                    className="border rounded px-3 py-1 text-sm bg-white hover:bg-gray-50 flex items-center"
-                                >
-                                    <span>{selectedSystems.size > 0 ? `${selectedSystems.size}件 選択` : 'システムを選択'}</span>
-                                    <svg className="w-4 h-4 ml-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
-                                </button>
-                                {systemFilterOpen && (
-                                    <div className="absolute z-20 right-0 mt-2 w-64 bg-white border border-gray-200 rounded-md shadow-lg max-h-80 overflow-y-auto">
-                                        <div className="p-2 border-b">
-                                            <button onClick={() => setSelectedSystems(new Set())} className="text-xs text-blue-600 hover:underline">すべてクリア</button>
-                                        </div>
-                                        {allSystemNames.map(name => (
-                                            <label key={name} className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">
-                                                <input 
-                                                    type="checkbox" 
-                                                    className="form-checkbox h-4 w-4 text-indigo-600 border-gray-300 rounded"
-                                                    checked={selectedSystems.has(name)} 
-                                                    onChange={() => handleSystemSelect(name)} 
-                                                />
-                                                <span className="ml-3 truncate">{name}</span>
-                                            </label>
-                                        ))}
-                                    </div>
-                                )}
+                            <div className="relative z-10">
+                                <TaskStatus
+                                    status={taskStatus}
+                                    onClick={() => onTaskToggle(project.id, task)}
+                                    disabled={isDisabled}
+                                />
                             </div>
-                            <ChartToggleButton options={[{label: '円', value: 'pie'}, {label: '棒', value: 'bar'}]} selected={systemChartType} onChange={setSystemChartType} />
                         </div>
-                    </div>
-                     <div className="w-full h-96">
-                        {systemData.length > 0 ? (
-                             <ResponsiveContainer>
-                                {systemChartType === 'pie' ? (
-                                    <PieChart>
-                                        <Pie data={systemData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={120} fill="#8884d8" startAngle={90} endAngle={-270}>
-                                            {systemData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
-                                        </Pie>
-                                        <Tooltip formatter={(value, name) => [`${value}件`, name]}/>
-                                        <Legend />
-                                    </PieChart>
-                                ) : (
-                                    <BarChart data={systemData} margin={{ top: 5, right: 20, left: 20, bottom: 80 }}>
-                                        <CartesianGrid strokeDasharray="3 3" />
-                                        <XAxis dataKey="name" interval={0} angle={-45} textAnchor="end" height={80} tick={{ fontSize: 12 }}/>
-                                        <YAxis allowDecimals={false}/>
-                                        <Tooltip formatter={(value) => [`${value}件`, '件数']}/>
-                                        <Bar dataKey="value">
-                                            {systemData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
-                                        </Bar>
-                                    </BarChart>
-                                )}
-                            </ResponsiveContainer>
-                        ) : <EmptyChart message={selectedSystems.size > 0 ? "フィルターに一致するデータがありません。" : "表示するデータがありません。"} />}
-                    </div>
+                    );
+                })}
+                
+                <div className="p-2 text-center">
+                    <button onClick={() => onViewDetails(project)} className="p-2 text-slate-500 hover:bg-slate-200 hover:text-slate-800 rounded-full transition-colors" title="詳細を表示">
+                        <DocumentTextIcon className="w-5 h-5" />
+                    </button>
                 </div>
+            </div>
+          );
+      };
 
-                {/* Trend Analysis */}
-                {(viewType === 'orders' || viewType === 'migrations') && target > 0 && (
-                    <div className="bg-white p-6 rounded-lg shadow-md lg:col-span-2">
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-lg font-semibold text-gray-800">トレンドグラフ</h3>
-                             <ChartToggleButton options={[{label: '線', value: 'line'}, {label: '棒', value: 'bar'}]} selected={trendChartType} onChange={setTrendChartType} />
-                        </div>
-                         <div className="w-full h-96">
-                             <ResponsiveContainer>
-                                {trendChartType === 'line' ? (
-                                    <LineChart data={trendDataToUse.data} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                                        <CartesianGrid strokeDasharray="3 3" vertical={false}/>
-                                        <XAxis 
-                                            dataKey="date" 
-                                            type="number"
-                                            scale="time"
-                                            domain={['dataMin', 'dataMax']}
-                                            ticks={trendDataToUse.ticks}
-                                            tickFormatter={(unixTime) => new Date(unixTime).toLocaleDateString('ja-JP', { month: 'short' })}
-                                        />
-                                        <YAxis domain={[dataMin => Math.floor(dataMin * 0.95), dataMax => Math.ceil(Math.max(target, dataMax) * 1.05)]} allowDecimals={false} />
-                                        <Tooltip 
-                                            labelFormatter={(unixTime) => new Date(unixTime).toLocaleDateString('ja-JP')}
-                                            formatter={(value, name) => {
-                                                const formattedValue = (typeof value === 'number') ? Math.round(value) : value;
-                                                return [formattedValue, name];
-                                            }}
-                                        />
-                                        <Legend />
-                                        {trendDataToUse.gridTicks.map(tick => <ReferenceLine key={tick} x={tick} stroke="#ccc" strokeDasharray="3 3" />)}
-                                        <Line type="monotone" dataKey="累計実績" name="累計実績" stroke="#4f46e5" strokeWidth={2} dot={false} activeDot={{ r: 8 }} connectNulls={false} />
-                                        <Line type="linear" dataKey="目標" name="目標" stroke="#f59e0b" strokeWidth={2} strokeDasharray="5 5" dot={false} />
-                                    </LineChart>
-                                ) : (
-                                    <ComposedChart data={barTrendData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                                        <CartesianGrid strokeDasharray="3 3" />
-                                        <XAxis dataKey="month" />
-                                        <YAxis allowDecimals={false} domain={[0, dataMax => Math.max(monthlyTarget * 1.5, dataMax * 1.2)]} />
-                                        <Tooltip content={<BarTrendTooltip />} />
-                                        <Legend />
-                                        <Bar dataKey="未達成" name="実績" stackId="a" fill="#4f46e5" />
-                                        <Bar dataKey="達成" name="目標達成" stackId="a" fill="#10b981" />
-                                        <Line type="monotone" dataKey="目標" name="目標ライン" stroke="#f59e0b" strokeDasharray="5 5" dot={false} strokeWidth={2}/>
-                                    </ComposedChart>
-                                )}
-                            </ResponsiveContainer>
-                        </div>
-                    </div>
-                )}
-                {viewType === 'cancellations' && cancellationReasonData.length > 0 && (
-                    <div className="bg-white p-6 rounded-lg shadow-md lg:col-span-2 mt-6">
-                        <h3 className="text-lg font-semibold text-gray-800 mb-4">解約理由分析</h3>
-                        <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
-                            {cancellationReasonData.map(({ reason, count, percentage }) => (
-                                <div key={reason}>
-                                    <div className="flex justify-between items-center mb-1 text-sm">
-                                        <span className="font-medium text-gray-700 truncate pr-4" title={reason}>{reason}</span>
-                                        <span className="text-gray-600 flex-shrink-0">{count}件 ({percentage.toFixed(1)}%)</span>
-                                    </div>
-                                    <div className="w-full bg-gray-200 rounded-full h-2.5">
-                                        <div className="bg-red-400 h-2.5 rounded-full" style={{ width: `${percentage}%` }}></div>
-                                    </div>
-                                </div>
+      const ProjectTable = ({ projects, onViewDetails, onTaskToggle }) => {
+        return (
+            <div className="bg-white shadow-lg rounded-xl overflow-x-auto mt-6">
+                <div className="w-full min-w-[1160px]">
+                    <div className="sticky-header border-b-2 border-slate-300 text-xs font-bold text-slate-600">
+                         <div className="grid grid-cols-[minmax(0,_3.5fr)_minmax(0,_1fr)_minmax(0,_1.2fr)_repeat(10,minmax(36px,_1fr))_minmax(0,_1fr)] items-center">
+                            <div className="p-2 pl-4">顧客・案件名</div>
+                            <div className="p-2 text-center">登録日</div>
+                            <div className="p-2 text-right">金額 (総額)</div>
+                            {TASKS.map(task => (
+                                <div key={task} className="p-1 text-center text-[10px] leading-tight break-words">{task}</div>
                             ))}
+                            <div className="p-2 text-center">詳細</div>
                         </div>
                     </div>
-                )}
-
-                 {/* Day of Month Analysis */}
-                 <div className="bg-white p-6 rounded-lg shadow-md lg:col-span-2 mt-6">
-                    <h3 className="text-lg font-semibold text-gray-800 mb-4">月内処理日分析</h3>
-                    {dayOfMonthAnalysis.dailyData.some(d => d.件数 > 0) ? (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                            <div>
-                                <h4 className="text-md font-medium text-center text-gray-700 mb-2">日別件数</h4>
-                                <div className="w-full" style={{ height: '400px' }}>
-                                    <ResponsiveContainer>
-                                        <BarChart data={dayOfMonthAnalysis.dailyData} margin={{ top: 5, right: 20, left: 0, bottom: 20 }}>
-                                            <CartesianGrid strokeDasharray="3 3" />
-                                            <XAxis dataKey="day" interval={2} tick={{ fontSize: 11 }} />
-                                            <YAxis allowDecimals={false} />
-                                            <Tooltip />
-                                            <Bar dataKey="件数" fill="#8884d8" />
-                                        </BarChart>
-                                    </ResponsiveContainer>
-                                </div>
+                    <div className="divide-y divide-slate-200">
+                        {projects.length > 0 ? (
+                            projects.map(project => <ProjectCard key={project.id} {...{ project, onViewDetails, onTaskToggle }} />)
+                        ) : (
+                             <div className="p-12 text-center text-slate-500">
+                                <h3 className="text-lg font-semibold">案件がありません</h3>
+                                <p className="mt-2 text-sm">右上の「新規案件」ボタンから新しい案件を登録してください。</p>
                             </div>
-                            <div>
-                                <h4 className="text-md font-medium text-center text-gray-700 mb-2">期間別件数 (直近月比較)</h4>
-                                <div className="w-full" style={{ height: '400px' }}>
-                                    <ResponsiveContainer>
-                                        <BarChart data={dayOfMonthAnalysis.periodComparisonData} margin={{ top: 5, right: 20, left: 0, bottom: 20 }}>
-                                            <CartesianGrid strokeDasharray="3 3" />
-                                            <XAxis dataKey="name" />
-                                            <YAxis allowDecimals={false} />
-                                            <Tooltip />
-                                            <Legend />
-                                            <Bar dataKey={dayOfMonthAnalysis.legendData.latest} fill="#8884d8" name={dayOfMonthAnalysis.legendData.prev ? `当月 (${dayOfMonthAnalysis.legendData.latest})` : '当期累計'} />
-                                            {dayOfMonthAnalysis.legendData.prev && <Bar dataKey={dayOfMonthAnalysis.legendData.prev} fill="#82ca9d" name={`前月 (${dayOfMonthAnalysis.legendData.prev})`} />}
-                                            {dayOfMonthAnalysis.legendData.prevYear && <Bar dataKey={dayOfMonthAnalysis.legendData.prevYear} fill="#ffc658" name={`前年同月 (${dayOfMonthAnalysis.legendData.prevYear})`} />}
-                                        </BarChart>
-                                    </ResponsiveContainer>
-                                </div>
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="h-80"><EmptyChart /></div>
-                    )}
+                        )}
+                    </div>
                 </div>
             </div>
         );
+      };
+
+      const DashboardCard = ({ title, value, subtext, colorClass = "text-slate-900" }) => (
+          <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
+              <div className="text-sm text-slate-500">{title}</div>
+              <div className={`text-3xl font-bold mt-1 ${colorClass}`}>{value}</div>
+              {subtext && <div className="text-xs text-slate-400 mt-1">{subtext}</div>}
+          </div>
+      );
+
+      const Dashboard = ({ projects, goalAmount, setGoalAmount, periodData }) => {
+          const { periods, selectedPeriod, setSelectedPeriod, remainingBusinessDays } = periodData;
+          const [isEditingGoal, setIsEditingGoal] = useState(false);
+          const [tempGoal, setTempGoal] = useState(goalAmount);
+          const [showSuccess, setShowSuccess] = useState(false);
+
+          const stats = useMemo(() => {
+              const allNonLostProjects = projects.filter(p => !p.isLost);
+              const totalAmount = allNonLostProjects.reduce((sum, p) => sum + p.mainAmount + (p.setupAmount || 0), 0);
+              const orderedProjects = allNonLostProjects.filter(p => p.tasks['本社発注']);
+              const orderedAmount = orderedProjects.reduce((sum, p) => sum + p.mainAmount + (p.setupAmount || 0), 0);
+              const achievementRate = goalAmount > 0 ? (orderedAmount / goalAmount) * 100 : 0;
+              return { totalAmount, orderedAmount, achievementRate };
+          }, [projects, goalAmount]);
+          
+          const handleSaveGoal = () => {
+              const newGoal = Number(tempGoal) || 0;
+              setGoalAmount(newGoal);
+              setIsEditingGoal(false);
+              setShowSuccess(true);
+              setTimeout(() => setShowSuccess(false), 3000);
+          }
+          
+          useEffect(() => {
+              setTempGoal(goalAmount);
+          }, [goalAmount]);
+
+          return (
+            <div className="bg-slate-50/50 shadow-lg rounded-xl p-6 mb-6">
+                <div className="flex justify-between items-start mb-6 flex-wrap gap-4">
+                    <div>
+                        <Label htmlFor="periodSelect">対象期間</Label>
+                        <Select id="periodSelect" value={selectedPeriod} onChange={e => setSelectedPeriod(e.target.value)} className="w-full sm:w-auto">
+                            {periods.map(p => <option key={p.value} value={p.value}>{p.label}</option>)}
+                        </Select>
+                    </div>
+                    <div className="bg-white p-3 rounded-lg border border-slate-200 text-center">
+                        <div className="text-sm text-slate-500">残り営業日</div>
+                        <div className="text-2xl font-bold mt-1 text-slate-900">{remainingBusinessDays}<span className="text-base ml-1">日</span></div>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <DashboardCard title="対象総額" value={`${stats.totalAmount.toLocaleString()}円`} subtext="失注を除く全案件の合計" />
+                     <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm relative">
+                        {showSuccess && <div className="absolute top-2 right-2 text-xs bg-green-100 text-green-700 px-2 py-1 rounded goal-success-toast">目標金額を登録しました！</div>}
+                        <div className="text-sm text-slate-500">目標金額</div>
+                        {isEditingGoal ? (
+                          <div className="mt-1">
+                            <input type="number" value={tempGoal} onChange={e => setTempGoal(e.target.value)} className="block w-full px-2 py-1 bg-white border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm" />
+                            <div className="flex gap-2 mt-2">
+                              <button onClick={handleSaveGoal} className="px-3 py-1 text-xs font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700">保存</button>
+                              <button onClick={() => { setIsEditingGoal(false); setTempGoal(goalAmount); }} className="px-3 py-1 text-xs font-medium text-slate-700 bg-slate-100 border border-slate-300 rounded-md hover:bg-slate-200">キャンセル</button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex justify-between items-end">
+                            <div className="text-3xl font-bold mt-1 text-slate-900">{goalAmount.toLocaleString()}<span className="text-lg ml-1">円</span></div>
+                            <button onClick={() => setIsEditingGoal(true)} className="px-3 py-1 text-xs font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100">登録</button>
+                          </div>
+                        )}
+                    </div>
+                    <DashboardCard title="受注金額" value={`${stats.orderedAmount.toLocaleString()}円`} colorClass="text-blue-600" subtext="失注を除く全受注案件の合計" />
+                    <DashboardCard title="目標達成率" value={`${stats.achievementRate.toFixed(1)}%`} colorClass="text-blue-600" />
+                </div>
+            </div>
+          );
       };
 
       const App = () => {
-        const fiscalPeriods = useMemo(() => generateFiscalPeriods(), []);
-        const initialPeriod = getCurrentPeriod(fiscalPeriods) || fiscalPeriods[0];
-        
-        const [view, setView] = useState('orders'); // 'orders' | 'migrations' | 'cancellations'
-        const [activeSubView, setActiveSubView] = useState('details'); // 'details' | 'analysis'
-        const [selectedPeriodId, setSelectedPeriodId] = useState(initialPeriod.id);
-        
-        const [orders, setOrders] = useLocalStorage('orders', []);
-        const [migrations, setMigrations] = useLocalStorage('migrations', []);
-        const [cancellations, setCancellations] = useLocalStorage('cancellations', []);
-        const [orderTargets, setOrderTargets] = useLocalStorage('allTargets', {});
-        const [migrationSettings, setMigrationSettings] = useLocalStorage('migrationSettings', {});
-        const [lastReadVersion, setLastReadVersion] = useLocalStorage('lastReadAppVersion', null);
-
-        const fileInputRef = useRef(null);
-
-        const [isDataEntryModalOpen, setDataEntryModalOpen] = useState(false);
-        const [isCorrectionModalOpen, setCorrectionModalOpen] = useState(false);
-        const [activeCorrectionIssue, setActiveCorrectionIssue] = useState(null);
-        const [isGuideModalOpen, setGuideModalOpen] = useState(false);
-        const [isCalcInfoModalOpen, setCalcInfoModalOpen] = useState(false);
-        const [isRevisionModalOpen, setRevisionModalOpen] = useState(false);
-        
-        useEffect(() => {
-          const currentPeriod = getCurrentPeriod(fiscalPeriods);
-          if (currentPeriod) {
-            setSelectedPeriodId(currentPeriod.id);
-          }
-          if (lastReadVersion !== CURRENT_APP_VERSION) {
-            setRevisionModalOpen(true);
-          }
-        }, [fiscalPeriods]);
-        
-        const handleCloseRevisionModal = () => {
-            setLastReadVersion(CURRENT_APP_VERSION);
-            setRevisionModalOpen(false);
-        };
-
-        // --- View-dependent state and handlers ---
-        const isOrdersView = view === 'orders';
-        const isMigrationsView = view === 'migrations';
-        const isCancellationsView = view === 'cancellations';
-
-        const currentItems = isOrdersView ? orders : isMigrationsView ? migrations : cancellations;
-        const setCurrentItems = isOrdersView ? setOrders : isMigrationsView ? setMigrations : setCancellations;
-        
-        const selectedPeriod = fiscalPeriods.find(p => p.id === selectedPeriodId) || initialPeriod;
-
-        const itemsForPeriod = useMemo(() => currentItems.filter(o => o.periodId === selectedPeriod.id), [currentItems, selectedPeriod.id]);
-        const ordersForPeriod = useMemo(() => orders.filter(o => o.periodId === selectedPeriod.id), [orders, selectedPeriod.id]);
-        const migrationsForPeriod = useMemo(() => migrations.filter(o => o.periodId === selectedPeriod.id), [migrations, selectedPeriod.id]);
-        const cancellationsForPeriod = useMemo(() => cancellations.filter(c => c.periodId === selectedPeriod.id), [cancellations, selectedPeriod.id]);
-        
-        const handleAddItems = (newItems, setItems) => {
-            setItems(prevItems => [...prevItems, ...newItems]);
-        };
-
-        const handleDeleteItem = (itemId) => {
-          setCurrentItems(prevItems => prevItems.filter(item => item.id !== itemId));
-        };
-        
-        const handleToggleTransfer = (orderId) => {
-            setOrders(prevOrders => 
-                prevOrders.map(order => 
-                    order.id === orderId 
-                    ? { ...order, isTransferred: !order.isTransferred } 
-                    : order 
-                )
-            );
-        };
-        
-        const handleSaveOrderTarget = (newTarget) => {
-          setOrderTargets(prev => ({ ...prev, [selectedPeriod.id]: newTarget }));
-        };
-
-        const handleUpdateMigrationSetting = (key, value) => {
-            setMigrationSettings(prev => {
-                const currentSettings = prev[selectedPeriod.id] || { initialCount: 0, cancellationAdjustment: 0, target: 0 };
-                return {
-                    ...prev,
-                    [selectedPeriod.id]: {
-                        ...currentSettings,
-                        [key]: value
-                    }
-                };
-            });
-        };
-        
-        // --- Data Validation Logic ---
-        const validationIssues = useMemo(() => {
-            const findDuplicates = (items, getKey) => {
-                const groups = items.reduce((acc, item) => {
-                    const key = getKey(item);
-                    if (!acc[key]) acc[key] = [];
-                    acc[key].push(item);
-                    return acc;
-                }, {});
-                return Object.values(groups)
-                    .filter(group => group.length > 1)
-                    .map(items => ({ key: getKey(items[0]), items }));
-            };
-
-            const itemKey = o => `${o.orderDate}|${o.officeCode}|${o.clientCode || ''}|${o.clientName}|${o.system}`;
-            const orderDuplicates = findDuplicates(orders, itemKey);
-            const cancellationDuplicates = findDuplicates(cancellations, itemKey);
-
-            const migrationKey = m => `${m.orderDate}|${m.officeCode}|${m.clientCode || ''}|${m.clientName}|${m.beforeSystem}|${m.afterSystem}`;
-            const migrationDuplicates = findDuplicates(migrations, migrationKey);
-
-            const migrationMistakes = migrations.filter(m => m.beforeSystem.includes('クラウド') || m.beforeSystem.includes('ｸﾗｳﾄﾞ'));
-
-            const migrationKeySet = new Set(migrations.map(m => `${m.orderDate}|${m.clientName}`));
-            const crossDuplicates = orders.filter(o => 
-                !o.isTransferred &&
-                migrationKeySet.has(`${o.orderDate}|${o.clientName}`)
-            );
-
-            return { orderDuplicates, migrationDuplicates, migrationMistakes, cancellationDuplicates, crossDuplicates };
-        }, [orders, migrations, cancellations]);
-
-        const handleShowCorrectionModal = (issueType) => {
-            const issueMap = {
-                crossDuplicates: { type: 'crossDuplicates', data: validationIssues.crossDuplicates, title: "新規自計化・クラウド移行の重複", description: "以下の新規自計化データは、同じ関与先・日付でクラウド移行データとしても登録されています。クラウド移行が正しい場合、補正を実行するとこれらの新規自計化データが削除されます。", correctionLabel: "新規自計化データを削除" },
-                orderDuplicates: { type: 'orderDuplicates', data: validationIssues.orderDuplicates, title: "新規自計化の重複データ", description: "以下のデータが完全に重複して登録されています。補正を実行すると、重複分が統合（1件に集約）されます。", correctionLabel: "重複データを統合" },
-                migrationMistakes: { type: 'migrationMistakes', data: validationIssues.migrationMistakes, title: "クラウド移行の登録ミス", description: "変更前システムに「クラウド」が含まれているため、移行対象ではない可能性があります。補正を実行すると、これらのデータは削除されます。", correctionLabel: "対象データを削除" },
-                migrationDuplicates: { type: 'migrationDuplicates', data: validationIssues.migrationDuplicates, title: "クラウド移行の重複データ", description: "以下のデータが完全に重複して登録されています。補正を実行すると、重複分が統合（1件に集約）されます。", correctionLabel: "重複データを統合" },
-                cancellationDuplicates: { type: 'cancellationDuplicates', data: validationIssues.cancellationDuplicates, title: "解約データの重複", description: "以下のデータが完全に重複して登録されています。補正を実行すると、重複分が統合（1件に集約）されます。", correctionLabel: "重複データを統合" }
-            };
-            setActiveCorrectionIssue(issueMap[issueType]);
-            setCorrectionModalOpen(true);
-        };
-        
-        const handleCorrectIssues = (issueType) => {
-          if (issueType === 'orderDuplicates') {
-              const idsToRemove = new Set(validationIssues.orderDuplicates.flatMap(group => group.items.slice(1).map(item => item.id)));
-              setOrders(prev => prev.filter(item => !idsToRemove.has(item.id)));
-          } else if (issueType === 'migrationMistakes') {
-              const idsToRemove = new Set(validationIssues.migrationMistakes.map(item => item.id));
-              setMigrations(prev => prev.filter(item => !idsToRemove.has(item.id)));
-          } else if (issueType === 'migrationDuplicates') {
-              const idsToRemove = new Set(validationIssues.migrationDuplicates.flatMap(group => group.items.slice(1).map(item => item.id)));
-              setMigrations(prev => prev.filter(item => !idsToRemove.has(item.id)));
-          } else if (issueType === 'cancellationDuplicates') {
-              const idsToRemove = new Set(validationIssues.cancellationDuplicates.flatMap(group => group.items.slice(1).map(item => item.id)));
-              setCancellations(prev => prev.filter(item => !idsToRemove.has(item.id)));
-          } else if (issueType === 'crossDuplicates') {
-              const idsToRemove = new Set(validationIssues.crossDuplicates.map(item => item.id));
-              setOrders(prev => prev.filter(item => !idsToRemove.has(item.id)));
-          }
-          setCorrectionModalOpen(false);
-          setActiveCorrectionIssue(null);
-          alert('補正が完了しました。');
-        };
-
-        const handleImportClick = () => { fileInputRef.current.click(); };
-        
-        const handleExportClick = useCallback(() => {
-          if (itemsForPeriod.length === 0) {
-              alert('エクスポートするデータがありません。');
-              return;
-          }
-          const headers = ['項番', '受注日', '事務所コード', '事務所名', '分類コード', '関与先名', 'システム', '数量', '備考', '完了'];
-          const tsvRows = itemsForPeriod.map((o, index) => {
-              const systemName = `${o.system} 関与先セットアップライセンス`;
-              const date = isCancellationsView ? o.orderDate.replace(/-/g, '') : o.orderDate.replace(/-/g, '');
-              const rowData = [
-                  index + 1, date, o.officeCode, o.officeName, o.clientCode || '',
-                  o.clientName, systemName, '1', '', '○'
-              ];
-              return rowData.join('\t');
-          });
-          const tsvContent = [headers.join('\t'), ...tsvRows].join('\n');
-          const blob = new Blob([`\uFEFF${tsvContent}`], { type: 'text/tab-separated-values;charset=utf-8;' });
-          const link = document.createElement('a');
-          const url = URL.createObjectURL(blob);
-          link.setAttribute('href', url);
-          
-          let fileName = 'データ';
-          if (isOrdersView) fileName = '受注データ';
-          else if (isMigrationsView) fileName = 'クラウド移行データ';
-          else if (isCancellationsView) fileName = '解約データ';
-          
-          link.setAttribute('download', `${fileName}_${selectedPeriod.name}.tsv`);
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-        }, [itemsForPeriod, selectedPeriod, isOrdersView, isMigrationsView, isCancellationsView]);
-        
-        const handleFileChange = (event) => {
-            const file = event.target.files[0]; if (!file) return;
-            const reader = new FileReader();
-            reader.onload = (e) => {
+          const [projects, setProjects] = useState(() => {
               try {
-                const buffer = e.target.result; if (!(buffer instanceof ArrayBuffer)) { alert('ファイルの読み込みに失敗しました。'); return; }
-                const bytes = new Uint8Array(buffer);
-                let encoding = 'shift-jis'; 
-                if (bytes.length >= 3 && bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF) { encoding = 'utf-8'; }
-                const decoder = new TextDecoder(encoding); const text = decoder.decode(buffer);
-                if (typeof text !== 'string' || text.trim() === '') { alert('ファイルが空か、読み込みに失敗しました。'); return; }
-                
-                const dataType = isOrdersView ? 'orders' : isMigrationsView ? 'migrations' : 'cancellations';
-                
-                const { newItems, errors } = parsePastedData(text, selectedPeriod, [], dataType);
-                
-                if (newItems.length === 0) {
-                    let errorMessage = 'ファイルから登録できる有効なデータが見つかりませんでした。';
-                    if (errors.length > 0) { errorMessage += `\n\n検出されたエラー:\n${errors.slice(0, 5).join('\n')}` + (errors.length > 5 ? `\n...他 ${errors.length - 5}件のエラー` : ''); }
-                    alert(errorMessage); return;
-                }
-                let confirmMessage = `${selectedPeriod.name}の既存データ（${itemsForPeriod.length}件）を削除し、ファイルから読み込んだ有効なデータ（${newItems.length}件）で上書きしますか？\n\nこの操作は元に戻せません。`;
-                if (errors.length > 0) { confirmMessage += `\n\n警告: ファイル内の ${errors.length}件のデータにエラーがあり、これらは取り込まれません。続行しますか？`; }
-                if (window.confirm(confirmMessage)) {
-                    setCurrentItems(prevItems => [...prevItems.filter(o => o.periodId !== selectedPeriod.id), ...newItems]);
-                    let resultMessage = `${newItems.length}件のデータを登録しました。`;
-                    if (errors.length > 0) { resultMessage += `\n${errors.length}件のエラーは無視されました。`; console.error("CSV import errors:", errors); }
-                    alert(resultMessage);
-                }
-              } catch (err) { console.error("An unexpected error occurred during file processing:", err); alert("ファイルの処理中に予期せぬエラーが発生しました。"); }
-            };
-            reader.onerror = () => { alert(`ファイルの読み込みに失敗しました: ${reader.error}`); };
-            reader.readAsArrayBuffer(file);
-            event.target.value = null;
-        };
+                  const savedProjects = localStorage.getItem('projects');
+                  return savedProjects ? JSON.parse(savedProjects) : [];
+              } catch (error) {
+                  console.error("Error loading projects from localStorage", error); return [];
+              }
+          });
+          const [goalAmount, setGoalAmount] = useState(() => {
+              try {
+                const savedGoal = localStorage.getItem('goalAmount');
+                return savedGoal ? Number(JSON.parse(savedGoal)) : 10000000;
+              } catch (error) {
+                  console.error("Error loading goal amount from localStorage", error); return 10000000;
+              }
+          });
+          const [isModalOpen, setIsModalOpen] = useState(false);
+          const [editingProject, setEditingProject] = useState(null);
+          const [viewingProject, setViewingProject] = useState(null);
+          const initialFilters = { keyword: '', status: 'すべて', customerCategory: 'すべて' };
+          const [filters, setFilters] = useState(initialFilters);
+          const [sortKey, setSortKey] = useState('registrationDate_desc');
+          const [isFilterVisible, setIsFilterVisible] = useState(false);
+          const [confirmation, setConfirmation] = useState({ isOpen: false, title: '', message: '', onConfirm: null, onCancel: null });
 
-        const uniqueOfficesForPeriod = useMemo(() => {
-            const officeMap = new Map();
-            itemsForPeriod.forEach(order => { if (!officeMap.has(order.officeCode) && order.officeName) officeMap.set(order.officeCode, { code: order.officeCode, name: order.officeName }); });
-            return Array.from(officeMap.values()).sort((a, b) => a.code.localeCompare(b.code));
-        }, [itemsForPeriod]);
+          const periodData = usePeriodCalculator();
 
-        const uniqueSystemsForPeriod = useMemo(() => [...new Set(itemsForPeriod.map(o => o.system))].sort(), [itemsForPeriod]);
+          useEffect(() => {
+              try {
+                  localStorage.setItem('projects', JSON.stringify(projects));
+              } catch (error) { console.error("Error saving projects to localStorage", error); }
+          }, [projects]);
 
-        // --- Summary Card Calculations (Orders View) ---
-        const activeOrdersForPeriod = useMemo(() => ordersForPeriod.filter(o => !o.isTransferred), [ordersForPeriod]);
-        const transferredOrdersCount = ordersForPeriod.length - activeOrdersForPeriod.length;
-        const orderCountSubValue = transferredOrdersCount > 0 ? `(内 移管: ${transferredOrdersCount}件)` : null;
-        const totalOrderTarget = orderTargets[selectedPeriod.id] || 0;
-        const totalActiveOrders = activeOrdersForPeriod.length;
-        const remainingOrders = Math.max(0, totalOrderTarget - totalActiveOrders);
-        const orderAchievementRate = totalOrderTarget > 0 ? ((totalActiveOrders / totalOrderTarget) * 100).toFixed(1) : '0.0';
-        const isOrderTargetAchieved = parseFloat(orderAchievementRate) >= 100;
+          useEffect(() => {
+              try {
+                  localStorage.setItem('goalAmount', JSON.stringify(goalAmount));
+              } catch (error) { console.error("Error saving goal amount to localStorage", error); }
+          }, [goalAmount]);
+          
+          const handleSaveProject = (projectData) => {
+              setProjects(prevProjects => {
+                  if (projectData.id) { // Update existing
+                      return prevProjects.map(p => p.id === projectData.id ? { ...p, ...projectData } : p);
+                  } else { // Add new
+                      const newProject = { 
+                          ...projectData, 
+                          id: Date.now(), 
+                          tasks: TASKS.reduce((acc, task) => ({...acc, [task]: false}), {}) 
+                      };
+                      return [...prevProjects, newProject];
+                  }
+              });
+              setEditingProject(null);
+          };
 
-        // --- Summary Card Calculations (Migrations View) ---
-        const allCloudOrdersForPeriod = useMemo(() => orders.filter(o => o.periodId === selectedPeriod.id && (o.system.includes('クラウド') || o.system.includes('ｸﾗｳﾄﾞ'))), [orders, selectedPeriod.id]);
-        const transferredCloudOrdersCount = allCloudOrdersForPeriod.filter(o => o.isTransferred).length;
-        const currentMigrationSettings = migrationSettings[selectedPeriod.id] || { initialCount: 0, cancellationAdjustment: 0, target: 0 };
-        const migrationTarget = currentMigrationSettings.target;
-        const initialCount = currentMigrationSettings.initialCount;
-        const cancellationAdjustment = currentMigrationSettings.cancellationAdjustment;
-        
-        const registeredCloudCancellations = useMemo(() => 
-            cancellationsForPeriod.filter(c => c.system.includes('クラウド') || c.system.includes('ｸﾗｳﾄﾞ')),
-            [cancellationsForPeriod]
-        );
-        const registeredCloudCancellationCount = registeredCloudCancellations.length;
-        const totalCancellations = registeredCloudCancellationCount + cancellationAdjustment;
+          const handleEditProject = (project) => {
+              setEditingProject(project);
+              setIsModalOpen(true);
+          };
 
-        const migrationsThisPeriod = migrationsForPeriod.length;
-        const newCloudOrders = allCloudOrdersForPeriod.length;
-        
-        const targetNetIncrease = migrationTarget - initialCount;
-        const actualNetIncrease = migrationsThisPeriod + newCloudOrders - totalCancellations;
-        
-        const currentMigrationTotal = initialCount + actualNetIncrease;
-        const remainingMigrations = Math.max(0, migrationTarget - currentMigrationTotal);
+          const handleDeleteProject = (projectId) => {
+              setConfirmation({
+                  isOpen: true, title: '案件の削除', message: 'この案件を完全に削除します。この操作は元に戻せません。よろしいですか？',
+                  onConfirm: () => {
+                      setProjects(prev => prev.filter(p => p.id !== projectId));
+                      setViewingProject(null);
+                      setConfirmation({ isOpen: false });
+                  },
+                  onCancel: () => setConfirmation({ isOpen: false })
+              });
+          };
+          
+          const handleSetLost = (projectId) => {
+              setConfirmation({
+                  isOpen: true, title: '失注の確認', message: 'この案件を「失注」としてマークしますか？タスクの変更ができなくなります。',
+                  onConfirm: () => {
+                      setProjects(prev => prev.map(p => p.id === projectId ? {...p, isLost: true} : p));
+                      setViewingProject(prev => prev && prev.id === projectId ? {...prev, isLost: true} : prev);
+                      setConfirmation({ isOpen: false });
+                  },
+                  onCancel: () => setConfirmation({ isOpen: false })
+              });
+          };
 
-        const migrationAchievementRate = targetNetIncrease > 0 ? ((actualNetIncrease / targetNetIncrease) * 100).toFixed(1) : '0.0';
-        const isMigrationTargetAchieved = parseFloat(migrationAchievementRate) >= 100;
+          const handleUndoLost = (projectId) => {
+              setConfirmation({
+                  isOpen: true, title: '失注の取り消し', message: 'この案件を「失注」から戻しますか？タスクの変更が可能になります。',
+                  onConfirm: () => {
+                      setProjects(prev => prev.map(p => p.id === projectId ? {...p, isLost: false} : p));
+                      setViewingProject(null);
+                      setConfirmation({ isOpen: false });
+                  },
+                  onCancel: () => setConfirmation({ isOpen: false })
+              });
+          };
 
-        const newCloudOrdersSubValue = transferredCloudOrdersCount > 0 ? `(内 移管: ${transferredCloudOrdersCount}件)` : null;
-        const cancellationSubValue = `(登録: ${registeredCloudCancellationCount}件 / 手動: ${cancellationAdjustment}件)`;
+          const handleTaskToggle = (projectId, taskName) => {
+              setProjects(prevProjects => prevProjects.map(p => {
+                  if (p.id === projectId) {
+                      const newTasks = { ...p.tasks };
+                      const isUnchecking = newTasks[taskName];
 
-        const ViewToggleButton = ({ viewName, label }) => (
-            <button onClick={() => setView(viewName)} className={`px-6 py-2 text-lg font-semibold rounded-md transition-all duration-200 ease-in-out ${view === viewName ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white text-gray-700 hover:bg-indigo-50'}`}>
-                {label}
-            </button>
-        );
+                      if (isUnchecking) {
+                          const visibleTasks = getVisibleTasks(p);
+                          const taskIndex = visibleTasks.indexOf(taskName);
+                          if (taskIndex !== -1) {
+                              for (let i = taskIndex; i < visibleTasks.length; i++) {
+                                  newTasks[visibleTasks[i]] = false;
+                              }
+                          }
+                      } else {
+                          newTasks[taskName] = true;
+                      }
+                      return { ...p, tasks: newTasks };
+                  }
+                  return p;
+              }));
+          };
 
-        return (
-          <div className="min-h-screen bg-gray-100 text-gray-800">
-            {isRevisionModalOpen && <RevisionHistoryModal version={CURRENT_APP_VERSION} onClose={handleCloseRevisionModal} />}
-            {isDataEntryModalOpen && <DataEntryModal selectedPeriod={selectedPeriod} onAddOrders={(newItems) => handleAddItems(newItems, setOrders)} onAddMigrations={(newItems) => handleAddItems(newItems, setMigrations)} onAddCancellations={(newItems) => handleAddItems(newItems, setCancellations)} onClose={() => setDataEntryModalOpen(false)} ordersForPeriod={ordersForPeriod} migrationsForPeriod={migrationsForPeriod} cancellationsForPeriod={cancellationsForPeriod} />}
-            {isCorrectionModalOpen && <CorrectionModal issue={activeCorrectionIssue} onCorrect={handleCorrectIssues} onClose={() => setCorrectionModalOpen(false)} />}
-            {isGuideModalOpen && (
-                <InfoModal title="使い方ガイド" onClose={() => setGuideModalOpen(false)}>
-                   <div>
-                        <h3>1. はじめに</h3>
-                        <p>このツールは、期間ごとの受注状況を管理・可視化します。上部のメニューで「新規自計化」「クラウド移行」「解約」の表示を切り替えられます。</p>
-                        <p><strong>新機能のお知らせ:</strong> アプリケーションの更新時に、主な変更点をお知らせする画面が表示されるようになりました。</p>
-                        
-                        <h3>2. データ登録</h3>
-                        <ul>
-                            <li><strong>新規登録:</strong> 右上の「新規登録」ボタンから、受注、クラウド移行、解約データを一括で貼り付けて登録できます。</li>
-                            <li><strong>データ形式:</strong> SFAの売上速報画面からコピーしたTSV（タブ区切り）形式のテキストを想定しています。ヘッダー行は自動でスキップされます。</li>
-                        </ul>
+          const confirmAndToggleTask = (projectId, taskName) => {
+              const project = projects.find(p => p.id === projectId);
+              if (!project || project.isLost) return;
 
-                        <h3>3. データ補正 (アラート機能)</h3>
-                        <p>データ登録後、システムが自動で内容をチェックします。問題が見つかった場合、画面上部にアラートが表示され、ボタンから一括補正が可能です。</p>
-                        <ul>
-                            <li><strong>新規自計化・クラウド移行の重複:</strong> 同じ関与先・日付で両方にデータが存在する場合に警告します。</li>
-                            <li><strong>重複データ:</strong> 各データ内で、同じ内容のデータが複数登録されている場合に警告します。</li>
-                            <li><strong>登録ミス:</strong> クラウド移行データで、変更前のシステムに「クラウド」が含まれている場合に警告します。</li>
-                        </ul>
+              const isUnchecking = project.tasks[taskName];
+              if (!isUnchecking) {
+                  handleTaskToggle(projectId, taskName);
+                  return;
+              }
+              
+              const visibleTasks = getVisibleTasks(project);
+              const isCompleted = visibleTasks.every(task => project.tasks[task]);
+              const isOrdered = project.tasks['本社発注'];
 
-                        <h3>4. ダッシュボードと分析</h3>
-                        <ul>
-                            <li><strong>目標設定:</strong> 「目標数」などのカードは、クリックすることで数値を直接変更できます。</li>
-                            <li><strong>クラウド移行の計算:</strong> 「当期クラウド純増数」のセクションで、<code>期首累計 + 当期移行 + 新規受注 - 解約 = 現在累計</code> の計算プロセスを視覚的に確認できます。右側の「？」アイコンで各項目の詳細な定義を確認できます。</li>
-                            <li><strong>分析タブ:</strong>
-                                <ul>
-                                    <li><strong>トレンドグラフ:</strong> 目標達成に向けた進捗を可視化します。特にクラウド移行のグラフは、期首の累計件数を開始点として、日々の増減を反映した実績値を表示します。</li>
-                                    <li><strong>事務所別グラフ:</strong> グラフ上部のボタンから、表示したい事務所を<strong>チェックボックスで選択</strong>して絞り込めます。同じ件数の項目は同じ色で表示されます。</li>
-                                    <li><strong>システム別グラフ:</strong> グラフ上部のボタンから、表示したいシステムを<strong>チェックボックスで選択</strong>して絞り込めます。</li>
-                                    <li><strong>月内処理日分析:</strong> 新しく追加されたグラフです。月の日ごとの件数や、月初・月中・月末ごとの件数分布を分析できます。</li>
-                                    <li><strong>解約理由分析（解約ビューのみ）:</strong> 登録された解約理由をグラフで表示し、どの理由が多いかを一目で把握できます。</li>
-                                </ul>
-                            </li>
-                        </ul>
-                        
-                        <h3>5. 詳細データ一覧</h3>
-                        <ul>
-                            <li><strong>フィルター:</strong> 「フィルターを表示」ボタンから、関与先名、事務所、システム、期間でデータを絞り込めます。</li>
-                            <li><strong>ソートと列幅調整:</strong> 列ヘッダーのクリックで並べ替え、境界線のドラッグで列幅を調整できます（設定は記憶されます）。</li>
-                            <li><strong>移管:</strong> 「新規自計化」データ一覧の「移管」ボタンを押すと、その受注を集計から除外できます。</li>
-                        </ul>
+              let confirmationMessage = '';
+              if (isCompleted) {
+                  confirmationMessage = 'この案件は「完了」ステータスです。タスクを未完了に戻しますか？後続のタスクも全て未完了になります。';
+              } else if (isOrdered && taskName === '本社発注') {
+                  confirmationMessage = 'この案件は「受注」ステータスです。「本社発注」を未完了に戻しますか？後続のタスクも全て未完了になります。';
+              } else if (isUnchecking) {
+                   confirmationMessage = `タスク「${taskName}」を未完了に戻しますか？後続のタスクも全て未完了になります。`;
+              }
 
-                        <h3>6. CSV取込・切出</h3>
-                        <ul>
-                            <li><strong>CSV切出 (エクスポート):</strong> 現在表示されているデータをTSV形式でダウンロードします。</li>
-                            <li><strong>CSV取込 (インポート):</strong> <strong>注意:</strong> 現在選択中の期間のデータは全て削除され、ファイルの内容に置き換わります。</li>
-                        </ul>
-                   </div>
-                </InfoModal>
-            )}
-            {isCalcInfoModalOpen && (
-                 <InfoModal title="クラウド移行 計算ロジック" onClose={() => setCalcInfoModalOpen(false)}>
-                    <div>
-                        <p>当期のクラウド純増数は、以下の計算式で算出されています。</p>
-                        <p className="text-center font-bold text-lg bg-gray-100 p-4 rounded-md my-4">
-                           <code>期首累計</code> + <code>当期移行</code> + <code>新規受注</code> - <code>解約</code> = <code>現在累計</code>
-                        </p>
-                        <h3>各項目の詳細</h3>
-                        <ul>
-                            <li><strong>期首累計:</strong> 前期からの繰り越し件数です。クリックして手動で設定できます。</li>
-                            <li><strong>当期移行:</strong> 当期に「クラウド移行データ」として登録された件数です。</li>
-                            <li><strong>新規受注:</strong> 当期に「受注データ」として登録された<strong>クラウドシステム</strong>の件数です。<br/><strong>※事務所移管として集計から除外されたデータもこの件数に含まれます。</strong></li>
-                            <li><strong>解約:</strong> 当期の解約件数です。以下の合計値となります。
-                                <ul>
-                                    <li>「解約データ」として登録された<strong>クラウドシステム</strong>の件数。</li>
-                                    <li>手動で調整した件数（カードをクリックして編集可能）。</li>
-                                </ul>
-                            </li>
-                             <li><strong>現在累計:</strong> 上記の計算結果です。期末目標に対する現在の進捗を示します。</li>
-                        </ul>
-                    </div>
-                </InfoModal>
-            )}
-            <input type="file" ref={fileInputRef} onChange={handleFileChange} style={{ display: 'none' }} accept=".csv,.txt,.tsv" />
-            
-            <header className="bg-white shadow-sm sticky top-0 z-30">
-              <div className="container mx-auto px-4 sm:px-6 lg:px-8">
-                  <div className="flex items-center justify-between h-16">
-                    <div className="flex-1 flex items-center">
-                        <h1 className="text-2xl font-bold text-gray-900">ソフトウェア受注管理ツール</h1>
-                        <button onClick={() => setGuideModalOpen(true)} className="ml-3 text-gray-400 hover:text-indigo-600" title="使い方ガイド">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                        </button>
-                    </div>
-                    <div className="flex-1 flex justify-center items-center">
-                       <label htmlFor="period-select" className="text-sm font-medium text-gray-700 mr-2 hidden sm:block">対象期間:</label>
-                       <select id="period-select" value={selectedPeriodId} onChange={(e) => setSelectedPeriodId(e.target.value)} className="block pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
-                        {fiscalPeriods.map(p => ( <option key={p.id} value={p.id}>{p.name}</option>))}
-                      </select>
-                    </div>
-                    <div className="flex-1 flex justify-end items-center space-x-2">
-                       <button onClick={handleExportClick} className="px-4 py-2 text-sm font-medium rounded-md text-gray-700 bg-gray-200 hover:bg-gray-300">CSV切出</button>
-                       <button onClick={handleImportClick} className="px-4 py-2 text-sm font-medium rounded-md text-indigo-600 bg-indigo-100 hover:bg-indigo-200">CSV取込</button>
-                      <button onClick={() => setDataEntryModalOpen(true)} className="px-5 py-2.5 text-base font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 btn-pulse">新規登録</button>
-                    </div>
+              if (confirmationMessage) {
+                  setConfirmation({
+                      isOpen: true, title: 'タスクの更新確認', message: confirmationMessage,
+                      onConfirm: () => {
+                          handleTaskToggle(projectId, taskName);
+                          setConfirmation({ isOpen: false });
+                      },
+                      onCancel: () => setConfirmation({ isOpen: false })
+                  });
+              } else {
+                  handleTaskToggle(projectId, taskName);
+              }
+          };
+          
+          const handleCarryOver = (project) => {
+              setConfirmation({
+                isOpen: true, title: '案件の繰越', message: `${project.clientName}の案件をコピーして繰り越しますか？`,
+                onConfirm: () => {
+                    const newProject = {
+                        ...project, id: Date.now(), registrationDate: new Date().toISOString().split('T')[0],
+                        tasks: TASKS.reduce((acc, task) => ({...acc, [task]: false}), {}),
+                        isLost: false, memo: `(繰越元: ${project.registrationDate} ${project.projectName})\n${project.memo}`
+                    };
+                    setProjects(prev => [...prev, newProject]);
+                    setConfirmation({isOpen: false});
+                    setViewingProject(null);
+                },
+                onCancel: () => setConfirmation({isOpen: false})
+              });
+          };
+
+          const handleFilterChange = (e) => {
+              setFilters(prev => ({ ...prev, [e.target.name]: e.target.value }));
+          };
+
+          const handleResetFilters = () => {
+              setFilters(initialFilters);
+              setSortKey('registrationDate_desc');
+          };
+
+          const filteredAndSortedProjects = useMemo(() => {
+              let result = projects.filter(p => {
+                    const keywordMatch = filters.keyword === '' || 
+                        p.clientName.toLowerCase().includes(filters.keyword.toLowerCase()) || 
+                        p.projectName.toLowerCase().includes(filters.keyword.toLowerCase());
+
+                    const visibleTasks = getVisibleTasks(p);
+                    const isCompleted = visibleTasks.every(task => p.tasks[task]);
+
+                    const statusMatch = filters.status === 'すべて' ? true :
+                        filters.status === '受注済み' ? p.tasks['本社発注'] && !isCompleted && !p.isLost :
+                        filters.status === '完了済み' ? isCompleted && !p.isLost :
+                        filters.status === '失注' ? p.isLost : false;
+                    
+                    const categoryMatch = filters.customerCategory === 'すべて' || p.category === filters.customerCategory;
+                    
+                    return keywordMatch && statusMatch && categoryMatch;
+              });
+
+              const [key, order] = sortKey.split('_');
+              result.sort((a, b) => {
+                  const valA = key === 'mainAmount' ? a.mainAmount + (a.setupAmount || 0) : a[key];
+                  const valB = key === 'mainAmount' ? b.mainAmount + (b.setupAmount || 0) : b[key];
+                  if (valA < valB) return order === 'asc' ? -1 : 1;
+                  if (valA > valB) return order === 'asc' ? 1 : -1;
+                  return 0;
+              });
+              return result;
+          }, [projects, filters, sortKey]);
+
+          return (
+              <div className="container mx-auto p-4 md:p-8 max-w-full">
+                  <header className="flex justify-between items-center mb-6 flex-wrap gap-4">
+                      <h1 className="text-3xl font-bold text-slate-900">受発注管理ツール</h1>
+                      <button onClick={() => { setEditingProject(null); setIsModalOpen(true); }} className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg shadow-md hover:bg-blue-700 transition-colors">
+                          <PlusIcon className="w-5 h-5" />
+                          <span>新規案件</span>
+                      </button>
+                  </header>
+                  
+                  <Dashboard projects={projects} goalAmount={goalAmount} setGoalAmount={setGoalAmount} periodData={periodData} />
+
+                  <div className="bg-white shadow-lg rounded-xl">
+                      <button onClick={() => setIsFilterVisible(!isFilterVisible)} className="w-full flex justify-between items-center font-bold text-lg text-slate-800 p-6">
+                          <span>フィルター & 並び替え</span>
+                          <ChevronUpIcon className={`w-6 h-6 transform transition-transform ${isFilterVisible ? '' : 'rotate-180'}`} />
+                      </button>
+                      <div className={`filter-content ${isFilterVisible ? 'open' : ''}`}>
+                          <div className="p-6 pt-0 border-t border-slate-200">
+                            <div className="space-y-4 pt-6">
+                                <div>
+                                    <Label htmlFor="keywordFilter">キーワード (顧客名, 案件名)</Label>
+                                    <Input type="text" id="keywordFilter" name="keyword" value={filters.keyword} onChange={handleFilterChange} placeholder="キーワードで検索..." />
+                                </div>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                    <div><Label>ステータス</Label><Select name="status" value={filters.status} onChange={handleFilterChange}>{STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}</Select></div>
+                                    <div><Label>顧客種別</Label><Select name="customerCategory" value={filters.customerCategory} onChange={handleFilterChange}><option value="すべて">すべて</option>{CUSTOMER_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}</Select></div>
+                                    <div><Label>並び順</Label><Select name="sortKey" value={sortKey} onChange={e => setSortKey(e.target.value)}>{Object.entries(SORT_OPTIONS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</Select></div>
+                                    <div className="flex items-end">
+                                      <button onClick={handleResetFilters} className="w-full px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 transition">リセット</button>
+                                    </div>
+                                </div>
+                            </div>
+                          </div>
+                      </div>
                   </div>
+
+                  <ProjectTable 
+                      projects={filteredAndSortedProjects}
+                      onViewDetails={setViewingProject}
+                      onTaskToggle={confirmAndToggleTask}
+                  />
+
+                  <NewProjectModal 
+                      isOpen={isModalOpen}
+                      onClose={() => setIsModalOpen(false)}
+                      onSaveProject={handleSaveProject}
+                      editingProject={editingProject}
+                  />
+                  
+                  <ProjectDetailModal
+                      isOpen={!!viewingProject}
+                      project={viewingProject}
+                      onClose={() => setViewingProject(null)}
+                      onEdit={handleEditProject}
+                      onDelete={handleDeleteProject}
+                      onCarryOver={handleCarryOver}
+                      onSetLost={handleSetLost}
+                      onUndoLost={handleUndoLost}
+                  />
+
+                   <ConfirmationModal 
+                      isOpen={confirmation.isOpen}
+                      title={confirmation.title}
+                      message={confirmation.message}
+                      onConfirm={confirmation.onConfirm}
+                      onCancel={confirmation.onCancel}
+                   />
               </div>
-            </header>
-
-            <main className="container mx-auto px-4 sm:px-6 lg:px-8 py-6">
-                 <div className="flex justify-center mb-6 bg-gray-200 p-1 rounded-lg">
-                    <ViewToggleButton viewName="orders" label="新規自計化" />
-                    <ViewToggleButton viewName="migrations" label="クラウド移行" />
-                    <ViewToggleButton viewName="cancellations" label="解約" />
-                 </div>
-                 
-                 {/* --- Alerts --- */}
-                <div className="space-y-3 mb-6">
-                    {validationIssues.crossDuplicates.length > 0 && (
-                        <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded-md shadow-sm flex justify-between items-center">
-                            <p><strong className="font-bold">警告:</strong> 新規自計化とクラウド移行に{validationIssues.crossDuplicates.length}件の重複の可能性があるデータが見つかりました。</p>
-                            <button onClick={() => handleShowCorrectionModal('crossDuplicates')} className="ml-4 px-4 py-2 text-sm font-medium rounded-md text-white bg-yellow-600 hover:bg-yellow-700">詳細表示 & 補正</button>
-                        </div>
-                    )}
-                    {validationIssues.orderDuplicates.length > 0 && (
-                        <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded-md shadow-sm flex justify-between items-center">
-                            <p><strong className="font-bold">警告:</strong> 新規自計化に{validationIssues.orderDuplicates.length}件の重複データが見つかりました。</p>
-                            <button onClick={() => handleShowCorrectionModal('orderDuplicates')} className="ml-4 px-4 py-2 text-sm font-medium rounded-md text-white bg-yellow-600 hover:bg-yellow-700">詳細表示 & 補正</button>
-                        </div>
-                    )}
-                    {validationIssues.migrationMistakes.length > 0 && (
-                        <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md shadow-sm flex justify-between items-center">
-                             <p><strong className="font-bold">エラー:</strong> クラウド移行に{validationIssues.migrationMistakes.length}件の登録ミス（変更前がクラウド）の可能性があります。</p>
-                            <button onClick={() => handleShowCorrectionModal('migrationMistakes')} className="ml-4 px-4 py-2 text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700">詳細表示 & 補正</button>
-                        </div>
-                    )}
-                     {validationIssues.migrationDuplicates.length > 0 && (
-                        <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded-md shadow-sm flex justify-between items-center">
-                           <p><strong className="font-bold">警告:</strong> クラウド移行に{validationIssues.migrationDuplicates.length}件の重複データが見つかりました。</p>
-                            <button onClick={() => handleShowCorrectionModal('migrationDuplicates')} className="ml-4 px-4 py-2 text-sm font-medium rounded-md text-white bg-yellow-600 hover:bg-yellow-700">詳細表示 & 補正</button>
-                        </div>
-                    )}
-                    {validationIssues.cancellationDuplicates.length > 0 && (
-                        <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded-md shadow-sm flex justify-between items-center">
-                           <p><strong className="font-bold">警告:</strong> 解約データに{validationIssues.cancellationDuplicates.length}件の重複データが見つかりました。</p>
-                            <button onClick={() => handleShowCorrectionModal('cancellationDuplicates')} className="ml-4 px-4 py-2 text-sm font-medium rounded-md text-white bg-yellow-600 hover:bg-yellow-700">詳細表示 & 補正</button>
-                        </div>
-                    )}
-                </div>
-
-                {isOrdersView && (
-                  <div className="relative">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-                        <EditableSummaryCard title="目標数" value={totalOrderTarget} suffix="件" color="text-blue-500" onSave={handleSaveOrderTarget} />
-                        <SummaryCard title="受注数" value={totalActiveOrders} suffix="件" color="text-green-500" subValue={orderCountSubValue} />
-                        <SummaryCard title="残り" value={remainingOrders} suffix="件" color="text-orange-500" />
-                        <SummaryCard title="達成率" value={orderAchievementRate} suffix="%" color={isOrderTargetAchieved ? "rainbow-text font-extrabold" : "text-indigo-500"} isAchieved={isOrderTargetAchieved} />
-                    </div>
-                  </div>
-                )}
-                {isMigrationsView && (
-                  <div className="relative">
-                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 mb-6">
-                      <div className="lg:col-span-2"><EditableSummaryCard title="期末累計(目標)" value={migrationTarget} suffix="件" color="text-blue-500" compact={true} onSave={(newValue) => handleUpdateMigrationSetting('target', newValue)} /></div>
-                      <div className="lg:col-span-8 bg-gray-50 p-4 rounded-lg border border-dashed flex flex-col">
-                           <div className="flex items-center mb-2">
-                               <h4 className="text-md font-semibold text-gray-700">当期クラウド純増数</h4>
-                               <button onClick={() => setCalcInfoModalOpen(true)} className="ml-2 text-gray-400 hover:text-indigo-600" title="計算ロジックの詳細">
-                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                      <path strokeLinecap="round" strokeLinejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                  </svg>
-                               </button>
-                           </div>
-                          <div className="flex items-stretch justify-around gap-2 flex-grow">
-                              <div className="flex-1"><EditableSummaryCard title="期首累計" value={initialCount} suffix="件" color="text-gray-500" compact={true} onSave={(newValue) => handleUpdateMigrationSetting('initialCount', newValue)} /></div>
-                              <div className="flex items-center text-2xl font-bold text-gray-400">+</div>
-                              <div className="flex-1"><SummaryCard title="当期移行" value={migrationsThisPeriod} suffix="件" color="text-green-500" compact={true} /></div>
-                              <div className="flex items-center text-2xl font-bold text-gray-400">+</div>
-                              <div className="flex-1"><SummaryCard title="新規受注" value={newCloudOrders} suffix="件" color="text-indigo-500" subValue={newCloudOrdersSubValue} compact={true} /></div>
-                              <div className="flex items-center text-2xl font-bold text-gray-400">-</div>
-                              <div className="flex-1"><EditableSummaryCard title="解約" value={totalCancellations} suffix="件" color="text-red-500" compact={true} onSave={(newValue) => handleUpdateMigrationSetting('cancellationAdjustment', newValue)} editInitialValue={cancellationAdjustment} subValue={cancellationSubValue} /></div>
-                              <div className="flex items-center text-2xl font-bold text-gray-400 mx-2">=</div>
-                              <div className="flex-1"><SummaryCard title="現在累計" value={currentMigrationTotal} suffix="件" color="text-purple-600 font-bold" compact={true} /></div>
-                          </div>
-                      </div>
-                      <div className="lg:col-span-2">
-                        <SummaryCard 
-                            title="達成率" 
-                            value={migrationAchievementRate} 
-                            suffix="%" 
-                            color={isMigrationTargetAchieved ? "rainbow-text font-extrabold" : "text-purple-500"} 
-                            isAchieved={isMigrationTargetAchieved} 
-                            compact={true} 
-                            secondary={migrationTarget > 0 ? {
-                                title: '残り',
-                                value: remainingMigrations,
-                                suffix: '件',
-                                color: 'text-orange-500'
-                            } : null}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )}
-                {isCancellationsView && (
-                   <div className="relative">
-                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 mb-6">
-                      <div className="lg:col-span-10 lg:col-start-2 bg-gray-50 p-4 rounded-lg border border-dashed">
-                          <div className="flex items-stretch justify-around gap-2 h-full">
-                              <div className="flex-1"><SummaryCard title="新規受注" value={totalActiveOrders} suffix="件" color="text-green-500" subValue={orderCountSubValue} compact={true} /></div>
-                              <div className="flex items-center text-3xl font-bold text-gray-400">-</div>
-                              <div className="flex-1"><SummaryCard title="解約件数" value={cancellationsForPeriod.length} suffix="件" color="text-red-500" compact={true} /></div>
-                              <div className="flex items-center text-3xl font-bold text-gray-400">=</div>
-                              <div className="flex-1"><SummaryCard title="純増社数" value={totalActiveOrders - cancellationsForPeriod.length} suffix="件" color="text-blue-500" compact={true} /></div>
-                          </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                
-                <div className="mt-4 mb-6 border-b border-gray-300">
-                    <nav className="-mb-px flex space-x-6" aria-label="Tabs">
-                        <button
-                            onClick={() => setActiveSubView('details')}
-                            className={`whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-colors ${
-                                activeSubView === 'details'
-                                    ? 'border-indigo-500 text-indigo-600'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                            }`}
-                        >
-                            詳細データ
-                        </button>
-                        <button
-                            onClick={() => setActiveSubView('analysis')}
-                            className={`whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm transition-colors ${
-                                activeSubView === 'analysis'
-                                    ? 'border-indigo-500 text-indigo-600'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                            }`}
-                        >
-                            分析
-                        </button>
-                    </nav>
-                </div>
-
-                {activeSubView === 'details' && (
-                    <DetailsView 
-                        items={itemsForPeriod} 
-                        offices={uniqueOfficesForPeriod} 
-                        systems={uniqueSystemsForPeriod} 
-                        onDeleteItem={handleDeleteItem}
-                        onToggleTransfer={handleToggleTransfer}
-                        viewType={view} 
-                    />
-                )}
-                {activeSubView === 'analysis' && (
-                     <AnalysisView 
-                        items={isOrdersView ? activeOrdersForPeriod : (isMigrationsView ? migrationsForPeriod : cancellationsForPeriod)}
-                        period={selectedPeriod}
-                        target={isOrdersView ? totalOrderTarget : (isMigrationsView ? migrationTarget : 0)}
-                        viewType={view}
-                        allCloudOrdersForPeriod={isMigrationsView ? allCloudOrdersForPeriod : []}
-                        registeredCloudCancellations={isMigrationsView ? registeredCloudCancellations : []}
-                        initialCount={isMigrationsView ? initialCount : 0}
-                        allOrders={orders}
-                        allMigrations={migrations}
-                        allCancellations={cancellations}
-                    />
-                )}
-            </main>
-
-            <footer className="text-center py-4 text-gray-500 text-sm">
-              <p>&copy; {new Date().getFullYear()} Order Management Tool. Version {CURRENT_APP_VERSION}</p>
-            </footer>
-          </div>
-        );
+          );
       };
 
-      // --- Mount Application ---
-      const rootElement = document.getElementById('root');
-      if (!rootElement) { throw new Error("Could not find root element to mount to"); }
-      const root = ReactDOM.createRoot(rootElement);
-      root.render(<React.StrictMode><App /></React.StrictMode>);
+      const container = document.getElementById('root');
+      const root = ReactDOM.createRoot(container);
+      root.render(<App />);
     </script>
-  <script type="module" src="/index.tsx"></script>
+<script type="module" src="/index.tsx"></script>
 </body>
 </html>
