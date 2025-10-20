@@ -308,19 +308,28 @@
 
       // --- Components ---
 
-      const SummaryCard = ({ title, value, suffix, color, subValue, isAchieved, compact = false }) => (
-        <div 
-          className={`bg-white ${compact ? 'p-3' : 'p-6'} rounded-lg shadow-md flex flex-col justify-center items-center text-center relative h-full`}
-        >
-          {isAchieved && <div className="achievement-stamp">達成</div>}
-          <h3 className={`text-gray-500 ${compact ? 'text-sm' : 'text-lg'} font-semibold mb-2`}>{title}</h3>
-          <div>
-            <p className={`${compact ? 'text-3xl' : 'text-5xl'} font-bold ${color}`}>
-              {value}
-              {suffix && <span className={`${compact ? 'text-lg' : 'text-2xl'} ml-1`}>{suffix}</span>}
-            </p>
-            {subValue && <p className={`${compact ? 'text-xs' : 'text-sm'} text-gray-500 mt-1`}>{subValue}</p>}
-          </div>
+      const SummaryCard = ({ title, value, suffix, color, subValue, isAchieved, compact = false, secondary }) => (
+        <div className={`bg-white ${compact ? 'p-3' : 'p-6'} rounded-lg shadow-md flex flex-col justify-between items-center text-center relative h-full`}>
+            <div>
+                {isAchieved && <div className="achievement-stamp">達成</div>}
+                <h3 className={`text-gray-500 ${compact ? 'text-sm' : 'text-lg'} font-semibold mb-2`}>{title}</h3>
+                <div>
+                    <p className={`${compact ? 'text-3xl' : 'text-5xl'} font-bold ${color}`}>
+                        {value}
+                        {suffix && <span className={`${compact ? 'text-lg' : 'text-2xl'} ml-1`}>{suffix}</span>}
+                    </p>
+                    {subValue && !secondary && <p className={`${compact ? 'text-xs' : 'text-sm'} text-gray-500 mt-1`}>{subValue}</p>}
+                </div>
+            </div>
+            {secondary && (
+                <div className={`mt-2 ${compact ? 'pt-2 border-t' : 'pt-4 border-t-2'} w-full`}>
+                    <h4 className="text-gray-500 text-xs font-semibold">{secondary.title}</h4>
+                    <p className={`text-4xl font-bold ${secondary.color}`}>
+                        {secondary.value}
+                        {secondary.suffix && <span className="text-xl ml-1">{secondary.suffix}</span>}
+                    </p>
+                </div>
+            )}
         </div>
       );
       
@@ -899,7 +908,7 @@
         </div>
       );
 
-      const AnalysisView = ({ items, period, target, viewType, allCloudOrdersForPeriod, registeredCloudCancellations, initialCount }) => {
+      const AnalysisView = ({ items, period, target, viewType, allCloudOrdersForPeriod, registeredCloudCancellations, initialCount, allOrders, allMigrations, allCancellations }) => {
         const [systemChartType, setSystemChartType] = useState('pie');
         const [trendChartType, setTrendChartType] = useState('line');
         
@@ -1157,7 +1166,11 @@
                 current.setMonth(current.getMonth() + 1);
             }
             
-            const monthlyCounts = items.reduce((acc, item) => {
+            const combinedItems = (viewType === 'migrations' && allCloudOrdersForPeriod)
+                ? [...items, ...allCloudOrdersForPeriod]
+                : items;
+
+            const monthlyCounts = combinedItems.reduce((acc, item) => {
                 const date = new Date(item.orderDate);
                 const key = `${date.getFullYear()}-${date.getMonth()}`;
                 acc[key] = (acc[key] || 0) + 1;
@@ -1165,20 +1178,29 @@
             }, {});
 
             const numberOfMonths = months.length > 0 ? months.length : 1;
-            const calculatedMonthlyTarget = Math.round(target / numberOfMonths);
+            let calculatedMonthlyTarget = 0;
+
+            if (viewType === 'migrations') {
+                const targetNetIncrease = target - initialCount;
+                calculatedMonthlyTarget = targetNetIncrease > 0 ? Math.round(targetNetIncrease / numberOfMonths) : 0;
+            } else { // for orders view
+                calculatedMonthlyTarget = Math.round(target / numberOfMonths);
+            }
 
             const data = months.map(({ year, month }) => {
                 const key = `${year}-${month}`;
                 const monthlyCount = monthlyCounts[key] || 0;
+                const isAchieved = monthlyCount >= calculatedMonthlyTarget && calculatedMonthlyTarget > 0;
                 
                 return {
                     month: `${year}/${String(month + 1).padStart(2, '0')}`,
-                    月間実績: monthlyCount,
-                    月間目標: calculatedMonthlyTarget,
+                    目標: calculatedMonthlyTarget,
+                    達成: isAchieved ? monthlyCount : null,
+                    未達成: !isAchieved ? monthlyCount : null,
                 };
             });
             return { barTrendData: data, monthlyTarget: calculatedMonthlyTarget };
-        }, [items, period, target]);
+        }, [items, period, target, viewType, allCloudOrdersForPeriod, initialCount]);
 
         const cancellationReasonData = useMemo(() => {
             if (viewType !== 'cancellations' || !items || items.length === 0) return [];
@@ -1198,31 +1220,86 @@
         }, [items, viewType]);
 
         const dayOfMonthAnalysis = useMemo(() => {
-            const allItems = viewType === 'migrations' 
+            const currentPeriodItems = viewType === 'migrations' 
                 ? [...items, ...allCloudOrdersForPeriod, ...registeredCloudCancellations]
                 : items;
-
-            if (!allItems || allItems.length === 0) return { dailyData: [], periodData: [] };
-
+            
             const dailyCounts = Array(31).fill(0);
             const periodCounts = { '月初 (1-10日)': 0, '月中 (11-20日)': 0, '月末 (21-31日)': 0 };
 
-            allItems.forEach(item => {
-                const day = new Date(item.orderDate).getDate();
-                if (day >= 1 && day <= 31) {
-                    dailyCounts[day - 1]++;
-                    if (day <= 10) periodCounts['月初 (1-10日)']++;
-                    else if (day <= 20) periodCounts['月中 (11-20日)']++;
-                    else periodCounts['月末 (21-31日)']++;
-                }
-            });
+            if (currentPeriodItems && currentPeriodItems.length > 0) {
+                currentPeriodItems.forEach(item => {
+                    const day = new Date(item.orderDate).getDate();
+                    if (day >= 1 && day <= 31) {
+                        dailyCounts[day - 1]++;
+                        if (day <= 10) periodCounts['月初 (1-10日)']++;
+                        else if (day <= 20) periodCounts['月中 (11-20日)']++;
+                        else periodCounts['月末 (21-31日)']++;
+                    }
+                });
+            }
+            
+            const dailyData = dailyCounts.map((count, index) => ({ day: String(index + 1), 件数: count }));
 
-            const dailyData = dailyCounts.map((count, index) => ({ day: index + 1, 件数: count }));
-            const periodData = Object.entries(periodCounts).map(([name, count]) => ({ name, 件数: count }));
+            let periodComparisonData = [
+                { name: '月初 (1-10日)', '当期': periodCounts['月初 (1-10日)'] },
+                { name: '月中 (11-20日)', '当期': periodCounts['月中 (11-20日)'] },
+                { name: '月末 (21-31日)', '当期': periodCounts['月末 (21-31日)'] }
+            ];
+            let legendData = { latest: '当期' };
 
-            return { dailyData, periodData };
-        }, [items, viewType, allCloudOrdersForPeriod, registeredCloudCancellations]);
+            let allDataSource = [];
+             if (viewType === 'migrations') {
+                const cloudOrders = (allOrders || []).filter(o => o.system.includes('クラウド') || o.system.includes('ｸﾗｳﾄﾞ'));
+                const cloudCancellations = (allCancellations || []).filter(c => c.system.includes('クラウド') || c.system.includes('ｸﾗｳﾄﾞ'));
+                allDataSource = [...(allMigrations || []), ...cloudOrders, ...cloudCancellations];
+            } else if (viewType === 'orders') {
+                allDataSource = allOrders || [];
+            } else { // cancellations
+                allDataSource = allCancellations || [];
+            }
 
+            if (allDataSource.length > 0) {
+                const latestDate = new Date(Math.max.apply(null, currentPeriodItems.map(e => new Date(e.orderDate))));
+                const latestYear = latestDate.getFullYear();
+                const latestMonth = latestDate.getMonth();
+
+                const prevMonthDate = new Date(latestYear, latestMonth - 1, 1);
+                const prevMonthYear = prevMonthDate.getFullYear();
+                const prevMonth = prevMonthDate.getMonth();
+                
+                const getPeriodCountsForMonth = (year, month) => {
+                    const counts = { '月初 (1-10日)': 0, '月中 (11-20日)': 0, '月末 (21-31日)': 0 };
+                    allDataSource.forEach(item => {
+                        const date = new Date(item.orderDate);
+                        if (date.getFullYear() === year && date.getMonth() === month) {
+                            const day = date.getDate();
+                            if (day <= 10) counts['月初 (1-10日)']++;
+                            else if (day <= 20) counts['月中 (11-20日)']++;
+                            else counts['月末 (21-31日)']++;
+                        }
+                    });
+                    return counts;
+                };
+
+                const latestMonthCounts = getPeriodCountsForMonth(latestYear, latestMonth);
+                const prevMonthCounts = getPeriodCountsForMonth(prevMonthYear, prevMonth);
+                const prevYearCounts = getPeriodCountsForMonth(latestYear - 1, latestMonth);
+
+                const latestMonthStr = `${latestYear}/${String(latestMonth + 1).padStart(2, '0')}`;
+                const prevMonthStr = `${prevMonthYear}/${String(prevMonth + 1).padStart(2, '0')}`;
+                const prevYearStr = `${latestYear - 1}/${String(latestMonth + 1).padStart(2, '0')}`;
+
+                periodComparisonData = [
+                    { name: '月初 (1-10日)', [latestMonthStr]: latestMonthCounts['月初 (1-10日)'], [prevMonthStr]: prevMonthCounts['月初 (1-10日)'], [prevYearStr]: prevYearCounts['月初 (1-10日)'] },
+                    { name: '月中 (11-20日)', [latestMonthStr]: latestMonthCounts['月中 (11-20日)'], [prevMonthStr]: prevMonthCounts['月中 (11-20日)'], [prevYearStr]: prevYearCounts['月中 (11-20日)'] },
+                    { name: '月末 (21-31日)', [latestMonthStr]: latestMonthCounts['月末 (21-31日)'], [prevMonthStr]: prevMonthCounts['月末 (21-31日)'], [prevYearStr]: prevYearCounts['月末 (21-31日)'] }
+                ];
+                legendData = { latest: latestMonthStr, prev: prevMonthStr, prevYear: prevYearStr };
+            }
+
+            return { dailyData, periodComparisonData, legendData };
+        }, [items, viewType, allCloudOrdersForPeriod, registeredCloudCancellations, allOrders, allMigrations, allCancellations]);
 
         const ChartToggleButton = ({ options, selected, onChange }) => (
             <div className="flex space-x-1 bg-gray-200 p-1 rounded-md">
@@ -1244,6 +1321,22 @@
                 {message}
             </div>
         );
+
+        const BarTrendTooltip = ({ active, payload, label }) => {
+            if (active && payload && payload.length) {
+                const total = payload.reduce((sum, entry) => sum + (entry.dataKey === '達成' || entry.dataKey === '未達成' ? entry.value : 0), 0);
+                const targetVal = payload.find(p => p.dataKey === '目標')?.value;
+
+                return (
+                    <div className="bg-white p-2 border border-gray-300 rounded shadow-sm text-sm">
+                        <p className="font-bold">{label}</p>
+                        <p style={{ color: total >= targetVal && targetVal > 0 ? '#10b981' : '#4f46e5' }}>実績: {total}</p>
+                        <p style={{ color: '#f59e0b' }}>目標: {targetVal}</p>
+                    </div>
+                );
+            }
+            return null;
+        };
         
         const trendDataToUse = viewType === 'migrations' ? cloudMigrationTrendData : lineTrendData;
         
@@ -1398,10 +1491,11 @@
                                         <CartesianGrid strokeDasharray="3 3" />
                                         <XAxis dataKey="month" />
                                         <YAxis allowDecimals={false} domain={[0, dataMax => Math.max(monthlyTarget * 1.5, dataMax * 1.2)]} />
-                                        <Tooltip />
+                                        <Tooltip content={<BarTrendTooltip />} />
                                         <Legend />
-                                        <Bar dataKey="月間実績" name="月間実績" fill="#4f46e5" />
-                                        <ReferenceLine y={monthlyTarget} stroke="#f59e0b" strokeWidth={2} />
+                                        <Bar dataKey="未達成" name="実績" stackId="a" fill="#4f46e5" />
+                                        <Bar dataKey="達成" name="目標達成" stackId="a" fill="#10b981" />
+                                        <Line type="monotone" dataKey="目標" name="目標ライン" stroke="#f59e0b" strokeDasharray="5 5" dot={false} strokeWidth={2}/>
                                     </ComposedChart>
                                 )}
                             </ResponsiveContainer>
@@ -1434,11 +1528,11 @@
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                             <div>
                                 <h4 className="text-md font-medium text-center text-gray-700 mb-2">日別件数</h4>
-                                <div className="w-full h-80">
+                                <div className="w-full" style={{ height: '400px' }}>
                                     <ResponsiveContainer>
-                                        <BarChart data={dayOfMonthAnalysis.dailyData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                                        <BarChart data={dayOfMonthAnalysis.dailyData} margin={{ top: 5, right: 20, left: 0, bottom: 20 }}>
                                             <CartesianGrid strokeDasharray="3 3" />
-                                            <XAxis dataKey="day" />
+                                            <XAxis dataKey="day" interval={2} tick={{ fontSize: 11 }} />
                                             <YAxis allowDecimals={false} />
                                             <Tooltip />
                                             <Bar dataKey="件数" fill="#8884d8" />
@@ -1447,17 +1541,18 @@
                                 </div>
                             </div>
                             <div>
-                                <h4 className="text-md font-medium text-center text-gray-700 mb-2">期間別件数</h4>
-                                <div className="w-full h-80">
+                                <h4 className="text-md font-medium text-center text-gray-700 mb-2">期間別件数 (直近月比較)</h4>
+                                <div className="w-full" style={{ height: '400px' }}>
                                     <ResponsiveContainer>
-                                        <BarChart data={dayOfMonthAnalysis.periodData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                                        <BarChart data={dayOfMonthAnalysis.periodComparisonData} margin={{ top: 5, right: 20, left: 0, bottom: 20 }}>
                                             <CartesianGrid strokeDasharray="3 3" />
                                             <XAxis dataKey="name" />
                                             <YAxis allowDecimals={false} />
                                             <Tooltip />
-                                            <Bar dataKey="件数">
-                                                {dayOfMonthAnalysis.periodData.map((entry, index) => <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />)}
-                                            </Bar>
+                                            <Legend />
+                                            <Bar dataKey={dayOfMonthAnalysis.legendData.latest} fill="#8884d8" name={dayOfMonthAnalysis.legendData.prev ? `当月 (${dayOfMonthAnalysis.legendData.latest})` : '当期累計'} />
+                                            {dayOfMonthAnalysis.legendData.prev && <Bar dataKey={dayOfMonthAnalysis.legendData.prev} fill="#82ca9d" name={`前月 (${dayOfMonthAnalysis.legendData.prev})`} />}
+                                            {dayOfMonthAnalysis.legendData.prevYear && <Bar dataKey={dayOfMonthAnalysis.legendData.prevYear} fill="#ffc658" name={`前年同月 (${dayOfMonthAnalysis.legendData.prevYear})`} />}
                                         </BarChart>
                                     </ResponsiveContainer>
                                 </div>
@@ -1731,12 +1826,18 @@
 
         const migrationsThisPeriod = migrationsForPeriod.length;
         const newCloudOrders = allCloudOrdersForPeriod.length;
-        const currentMigrationTotal = initialCount + migrationsThisPeriod + newCloudOrders - totalCancellations;
+        
+        const targetNetIncrease = migrationTarget - initialCount;
+        const actualNetIncrease = migrationsThisPeriod + newCloudOrders - totalCancellations;
+        
+        const currentMigrationTotal = initialCount + actualNetIncrease;
         const remainingMigrations = Math.max(0, migrationTarget - currentMigrationTotal);
-        const migrationAchievementRate = migrationTarget > 0 ? ((currentMigrationTotal / migrationTarget) * 100).toFixed(1) : '0.0';
+
+        const migrationAchievementRate = targetNetIncrease > 0 ? ((actualNetIncrease / targetNetIncrease) * 100).toFixed(1) : '0.0';
         const isMigrationTargetAchieved = parseFloat(migrationAchievementRate) >= 100;
+
         const newCloudOrdersSubValue = transferredCloudOrdersCount > 0 ? `(内 移管: ${transferredCloudOrdersCount}件)` : null;
-        const cancellationSubValue = `(登録[クラウドのみ]: ${registeredCloudCancellationCount}件 / 手動: ${cancellationAdjustment}件)`;
+        const cancellationSubValue = `(登録: ${registeredCloudCancellationCount}件 / 手動: ${cancellationAdjustment}件)`;
 
         const ViewToggleButton = ({ viewName, label }) => (
             <button onClick={() => setView(viewName)} className={`px-6 py-2 text-lg font-semibold rounded-md transition-all duration-200 ease-in-out ${view === viewName ? 'bg-indigo-600 text-white shadow-lg' : 'bg-white text-gray-700 hover:bg-indigo-50'}`}>
@@ -1924,10 +2025,25 @@
                               <div className="flex items-center text-2xl font-bold text-gray-400">-</div>
                               <div className="flex-1"><EditableSummaryCard title="解約" value={totalCancellations} suffix="件" color="text-red-500" compact={true} onSave={(newValue) => handleUpdateMigrationSetting('cancellationAdjustment', newValue)} editInitialValue={cancellationAdjustment} subValue={cancellationSubValue} /></div>
                               <div className="flex items-center text-2xl font-bold text-gray-400 mx-2">=</div>
-                              <div className="flex-1"><SummaryCard title="現在累計" value={currentMigrationTotal} suffix="件" color="text-purple-600 font-bold" compact={true} subValue={migrationTarget > 0 ? `目標まであと ${remainingMigrations}件` : null} /></div>
+                              <div className="flex-1"><SummaryCard title="現在累計" value={currentMigrationTotal} suffix="件" color="text-purple-600 font-bold" compact={true} /></div>
                           </div>
                       </div>
-                      <div className="lg:col-span-2"><SummaryCard title="達成率" value={migrationAchievementRate} suffix="%" color={isMigrationTargetAchieved ? "rainbow-text font-extrabold" : "text-purple-500"} isAchieved={isMigrationTargetAchieved} compact={true} /></div>
+                      <div className="lg:col-span-2">
+                        <SummaryCard 
+                            title="達成率" 
+                            value={migrationAchievementRate} 
+                            suffix="%" 
+                            color={isMigrationTargetAchieved ? "rainbow-text font-extrabold" : "text-purple-500"} 
+                            isAchieved={isMigrationTargetAchieved} 
+                            compact={true} 
+                            secondary={migrationTarget > 0 ? {
+                                title: '残り',
+                                value: remainingMigrations,
+                                suffix: '件',
+                                color: 'text-orange-500'
+                            } : null}
+                        />
+                      </div>
                     </div>
                   </div>
                 )}
@@ -1991,6 +2107,9 @@
                         allCloudOrdersForPeriod={isMigrationsView ? allCloudOrdersForPeriod : []}
                         registeredCloudCancellations={isMigrationsView ? registeredCloudCancellations : []}
                         initialCount={isMigrationsView ? initialCount : 0}
+                        allOrders={orders}
+                        allMigrations={migrations}
+                        allCancellations={cancellations}
                     />
                 )}
             </main>
